@@ -83,6 +83,8 @@ const state = {
   ornBladeCount: 3,
   ornShowSparkles: true,
   ornShowBeads: true,
+  ornGlossy: true,
+  ornGloss: 0.85,
   backgroundImage: null,
   logoImage: null,
   animate: false,
@@ -3108,6 +3110,81 @@ function ornFillPoly(pts, cx, cy, sx, sy) {
   ctx.fill();
 }
 
+function ornShade(hex, target, amt) {
+  return rgbToRgba(mixRgb(hex, target, amt), 1);
+}
+
+// Render a polygon as a glossy 3D ceramic/glazed shape: a volume gradient with
+// ambient occlusion, a soft sheen and a sharp specular hotspot (light from
+// upper-left), plus a soft drop shadow — approximating the Netflix Golden look.
+function glossyFillPts(pts, baseHex) {
+  if (pts.length < 3) return;
+  const gloss = clamp(state.ornGloss, 0, 1);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const w = Math.max(1, maxX - minX);
+  const h = Math.max(1, maxY - minY);
+  const big = Math.max(w, h);
+  const path = new Path2D();
+  pts.forEach((p, i) => (i === 0 ? path.moveTo(p.x, p.y) : path.lineTo(p.x, p.y)));
+  path.closePath();
+
+  // Soft drop shadow.
+  ctx.save();
+  ctx.shadowColor = "rgba(24, 20, 34, 0.32)";
+  ctx.shadowBlur = big * 0.06;
+  ctx.shadowOffsetX = big * 0.012;
+  ctx.shadowOffsetY = big * 0.03;
+  ctx.fillStyle = ornShade(baseHex, "#000000", 0.12);
+  ctx.fill(path);
+  ctx.restore();
+
+  ctx.save();
+  ctx.clip(path);
+  // Volume gradient (top-lit).
+  const g = ctx.createLinearGradient(minX, minY, minX + w * 0.15, maxY);
+  g.addColorStop(0, ornShade(baseHex, "#ffffff", 0.42 * gloss));
+  g.addColorStop(0.5, baseHex);
+  g.addColorStop(1, ornShade(baseHex, "#0a0a12", 0.5 * gloss));
+  ctx.fillStyle = g;
+  ctx.fillRect(minX, minY, w, h);
+  // Ambient occlusion, lower-right.
+  const ao = ctx.createRadialGradient(minX + w * 0.7, minY + h * 0.82, 0, minX + w * 0.7, minY + h * 0.82, big * 0.78);
+  ao.addColorStop(0, `rgba(0,0,0,${0.34 * gloss})`);
+  ao.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = ao;
+  ctx.fillRect(minX, minY, w, h);
+  // Broad sheen, upper-left.
+  const sheen = ctx.createRadialGradient(minX + w * 0.34, minY + h * 0.26, 0, minX + w * 0.34, minY + h * 0.26, big * 0.62);
+  sheen.addColorStop(0, `rgba(255,255,255,${0.5 * gloss})`);
+  sheen.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = sheen;
+  ctx.fillRect(minX, minY, w, h);
+  // Sharp specular hotspot.
+  const spec = ctx.createRadialGradient(minX + w * 0.4, minY + h * 0.17, 0, minX + w * 0.4, minY + h * 0.17, big * 0.16);
+  spec.addColorStop(0, `rgba(255,255,255,${0.92 * gloss})`);
+  spec.addColorStop(0.55, `rgba(255,255,255,${0.16 * gloss})`);
+  spec.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = spec;
+  ctx.fillRect(minX, minY, w, h);
+  ctx.restore();
+}
+
+function ornFillPolyStyled(pts, cx, cy, sx, sy, baseHex) {
+  if (!state.ornGlossy) {
+    ctx.fillStyle = baseHex;
+    ornFillPoly(pts, cx, cy, sx, sy);
+    return;
+  }
+  const tpts = pts.map((p) => ({ x: cx + (p.x - cx) * sx, y: cy + (p.y - cy) * sy }));
+  glossyFillPts(tpts, baseHex);
+}
+
 function ornSparkle(x, y, r, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -3123,17 +3200,51 @@ function ornSparkle(x, y, r, color) {
   ctx.fill();
 }
 
+function glossyEllipse(x, y, rx, ry, rot, baseHex) {
+  const gloss = clamp(state.ornGloss, 0, 1);
+  ctx.save();
+  ctx.shadowColor = "rgba(24, 20, 34, 0.3)";
+  ctx.shadowBlur = ry * 0.6;
+  ctx.shadowOffsetY = ry * 0.35;
+  ctx.fillStyle = ornShade(baseHex, "#000000", 0.1);
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+  ctx.clip();
+  const g = ctx.createRadialGradient(x - rx * 0.35, y - ry * 0.45, 0, x, y, Math.max(rx, ry) * 1.15);
+  g.addColorStop(0, ornShade(baseHex, "#ffffff", 0.55 * gloss));
+  g.addColorStop(0.5, baseHex);
+  g.addColorStop(1, ornShade(baseHex, "#0a0a12", 0.5 * gloss));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - rx * 1.5, y - ry * 1.5, rx * 3, ry * 3);
+  const spec = ctx.createRadialGradient(x - rx * 0.32, y - ry * 0.5, 0, x - rx * 0.32, y - ry * 0.5, Math.max(rx, ry) * 0.5);
+  spec.addColorStop(0, `rgba(255,255,255,${0.9 * gloss})`);
+  spec.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = spec;
+  ctx.fillRect(x - rx * 1.5, y - ry * 1.5, rx * 3, ry * 3);
+  ctx.restore();
+}
+
 function ornBeadStack(x, y, dir, r0, count, color) {
-  ctx.fillStyle = color;
   let px = x, py = y, r = r0;
   for (let i = 0; i < count; i += 1) {
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(dir);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, r * 1.35, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    if (state.ornGlossy) {
+      glossyEllipse(px, py, r * 1.35, r, dir, color);
+    } else {
+      ctx.fillStyle = color;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(dir);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 1.35, r, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     px += Math.cos(dir) * r * 2.05;
     py += Math.sin(dir) * r * 2.05;
     r *= 0.72;
@@ -3141,6 +3252,15 @@ function ornBeadStack(x, y, dir, r0, count, color) {
 }
 
 function ornDiamond(cx, cy, rx, ry, color) {
+  if (state.ornGlossy) {
+    glossyFillPts([
+      { x: cx, y: cy - ry },
+      { x: cx + rx, y: cy },
+      { x: cx, y: cy + ry },
+      { x: cx - rx, y: cy },
+    ], color);
+    return;
+  }
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(cx, cy - ry);
@@ -3188,10 +3308,9 @@ function drawOrnament() {
   }
 
   // Flame/leaf flourishes — quad-mirrored.
-  ctx.fillStyle = state.ornLeafColor;
   const reflect = [[1, 1], [-1, 1], [1, -1], [-1, -1]];
   for (const [sx, sy] of reflect) {
-    for (const poly of cluster) ornFillPoly(poly, cx, cy, sx, sy);
+    for (const poly of cluster) ornFillPolyStyled(poly, cx, cy, sx, sy, state.ornLeafColor);
   }
 
   // Beaded cardinal tips (top/bottom/left/right), pointing outward from diamond.
@@ -3885,6 +4004,7 @@ document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
   bindToggle("ornamentModeInput", "ornamentMode");
   bindToggle("ornSparklesInput", "ornShowSparkles");
   bindToggle("ornBeadsInput", "ornShowBeads");
+  bindToggle("ornGlossyInput", "ornGlossy");
   bindColor("ornBgInput", "ornBg");
   bindColor("ornDiamondColorInput", "ornDiamondColor");
   bindColor("ornLeafColorInput", "ornLeafColor");
