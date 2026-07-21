@@ -71,6 +71,18 @@ const state = {
   outlineStroke: false,
   outlineColor: "#f8f8f6",
   outlineAlpha: 1,
+  // --- Flat Ornament mode (Image #29 aesthetic) ---
+  ornamentMode: true,
+  ornBg: "#ecebe3",
+  ornDiamondColor: "#e8402a",
+  ornLeafColor: "#5b5a39",
+  ornSparkleColor: "#e9a7c6",
+  ornBeadColor: "#e8402a",
+  ornDiamondSize: 0.2,
+  ornBladeLength: 0.34,
+  ornBladeCount: 3,
+  ornShowSparkles: true,
+  ornShowBeads: true,
   backgroundImage: null,
   logoImage: null,
   animate: false,
@@ -1688,6 +1700,14 @@ function buildPattern() {
   state.seed = state.useTextSeed && factors.active ? factors.seed : Date.now() >>> 0;
   updateTextSeedMeta(state.textSeedValue);
 
+  // Flat Ornament mode bypasses the organic stroke pipeline entirely.
+  if (state.ornamentMode) {
+    state.paths = [];
+    state.progress = 1;
+    draw();
+    return;
+  }
+
   const densityValue = clamp(state.density + factors.density, 0.15, 1);
   const straightValue = clamp(state.straightLines + factors.straight, 0, 1);
   const flourishesValue = clamp(state.flourishes + factors.flourishes, 0, 1);
@@ -3011,7 +3031,200 @@ function drawTextReference() {
   compositeMirrored(layer, 0.55, "screen");
 }
 
+// ---------------------------------------------------------------------------
+// Flat Ornament mode — a dedicated symmetric vector renderer (Image #29 look):
+// a central diamond flanked by radiating flame/leaf flourishes, corner sparkles
+// and beaded cardinal tips. Flat solid fills, quad-mirrored, seeded by name.
+// ---------------------------------------------------------------------------
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// One flame/leaf flourish: a curving, tapering blade plus a few pointed licks.
+// Returns an array of solid polygons (absolute canvas points).
+function ornBladePolys(rng, ox, oy, heading, length, baseWidth) {
+  const polys = [];
+  const steps = 22;
+  const curl = (rng() * 2 - 1) * 1.35;
+  const widthPow = 0.5 + rng() * 0.4;
+  const dl = length / steps;
+  const spine = [];
+  let x = ox, y = oy, ang = heading;
+  for (let i = 0; i <= steps; i += 1) {
+    spine.push({ x, y, ang });
+    ang += curl / steps;
+    x += Math.cos(ang) * dl;
+    y += Math.sin(ang) * dl;
+  }
+  const left = [], right = [];
+  for (let i = 0; i < spine.length; i += 1) {
+    const t = i / steps;
+    const w = baseWidth * 0.5 * Math.pow(1 - t, widthPow);
+    const s = spine[i];
+    const nx = Math.cos(s.ang + Math.PI / 2);
+    const ny = Math.sin(s.ang + Math.PI / 2);
+    left.push({ x: s.x + nx * w, y: s.y + ny * w });
+    right.push({ x: s.x - nx * w, y: s.y - ny * w });
+  }
+  polys.push(left.concat(right.reverse()));
+
+  const licks = 1 + Math.floor(rng() * 2);
+  for (let k = 0; k < licks; k += 1) {
+    const ti = 0.2 + rng() * 0.5;
+    const idx = Math.floor(ti * steps);
+    const s = spine[idx];
+    const side = rng() < 0.5 ? 1 : -1;
+    const lang = s.ang + side * (0.45 + rng() * 0.6);
+    const llen = length * (0.24 + rng() * 0.24);
+    const lw = baseWidth * 0.52 * (1 - ti);
+    const tipx = s.x + Math.cos(lang) * llen;
+    const tipy = s.y + Math.sin(lang) * llen;
+    const bx = Math.cos(lang + Math.PI / 2) * lw;
+    const by = Math.sin(lang + Math.PI / 2) * lw;
+    polys.push([
+      { x: s.x + bx, y: s.y + by },
+      { x: tipx, y: tipy },
+      { x: s.x - bx, y: s.y - by },
+    ]);
+  }
+  return polys;
+}
+
+function ornFillPoly(pts, cx, cy, sx, sy) {
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i += 1) {
+    const px = cx + (pts[i].x - cx) * sx;
+    const py = cy + (pts[i].y - cy) * sy;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function ornSparkle(x, y, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  const inner = r * 0.16;
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i * Math.PI) / 4 - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : inner;
+    const px = x + Math.cos(a) * rad;
+    const py = y + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function ornBeadStack(x, y, dir, r0, count, color) {
+  ctx.fillStyle = color;
+  let px = x, py = y, r = r0;
+  for (let i = 0; i < count; i += 1) {
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(dir);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.35, r, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    px += Math.cos(dir) * r * 2.05;
+    py += Math.sin(dir) * r * 2.05;
+    r *= 0.72;
+  }
+}
+
+function ornDiamond(cx, cy, rx, ry, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - ry);
+  ctx.lineTo(cx + rx, cy);
+  ctx.lineTo(cx, cy + ry);
+  ctx.lineTo(cx - rx, cy);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawOrnament() {
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const minSide = Math.min(W, H);
+
+  ctx.save();
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = state.ornBg;
+  ctx.fillRect(0, 0, W, H);
+
+  const factors = state.useTextSeed ? textSeedFactors(state.textSeedValue) : { seed: 0, active: false };
+  const seed = factors.active ? factors.seed : (state.seed >>> 0) || 1;
+  const rng = mulberry32(seed);
+
+  const dR = minSide * clamp(state.ornDiamondSize, 0.05, 0.4);   // diamond half-height
+  const dRx = dR * 0.72;                                         // diamond half-width
+  const bladeLen = minSide * clamp(state.ornBladeLength, 0.1, 0.6);
+  const bladeW = minSide * 0.095;
+  const perQuad = Math.max(1, Math.round(state.ornBladeCount));
+
+  // Build one canonical cluster in the top-right quadrant: blades emanate from
+  // the diamond's right flank, fanning up-and-outward.
+  const cluster = [];
+  const baseX = cx + dRx * 0.5;
+  for (let i = 0; i < perQuad; i += 1) {
+    const f = perQuad === 1 ? 0.5 : i / (perQuad - 1);
+    const oy = cy - dR * (0.15 + f * 0.55);
+    const ox = baseX + dRx * 0.25 * f;
+    const heading = -Math.PI * (0.06 + f * 0.36) + (rng() - 0.5) * 0.18; // up-right fan
+    const len = bladeLen * (0.82 + rng() * 0.4);
+    const polys = ornBladePolys(rng, ox, oy, heading, len, bladeW * (0.85 + rng() * 0.4));
+    cluster.push(...polys);
+  }
+
+  // Flame/leaf flourishes — quad-mirrored.
+  ctx.fillStyle = state.ornLeafColor;
+  const reflect = [[1, 1], [-1, 1], [1, -1], [-1, -1]];
+  for (const [sx, sy] of reflect) {
+    for (const poly of cluster) ornFillPoly(poly, cx, cy, sx, sy);
+  }
+
+  // Beaded cardinal tips (top/bottom/left/right), pointing outward from diamond.
+  if (state.ornShowBeads) {
+    const beadR = minSide * 0.02;
+    ornBeadStack(cx, cy - dR, -Math.PI / 2, beadR, 4, state.ornBeadColor);
+    ornBeadStack(cx, cy + dR, Math.PI / 2, beadR, 4, state.ornBeadColor);
+    ornBeadStack(cx - dRx, cy, Math.PI, beadR, 3, state.ornBeadColor);
+    ornBeadStack(cx + dRx, cy, 0, beadR, 3, state.ornBeadColor);
+  }
+
+  // Corner sparkles.
+  if (state.ornShowSparkles) {
+    const sr = minSide * 0.03;
+    const off = minSide * 0.34;
+    ornSparkle(cx - off, cy - off, sr, state.ornSparkleColor);
+    ornSparkle(cx + off, cy - off, sr, state.ornSparkleColor);
+    ornSparkle(cx - off, cy + off, sr, state.ornSparkleColor);
+    ornSparkle(cx + off, cy + off, sr, state.ornSparkleColor);
+  }
+
+  // Central diamond on top.
+  ornDiamond(cx, cy, dRx, dR, state.ornDiamondColor);
+
+  drawLogoImage();
+  ctx.restore();
+}
+
 function draw() {
+  if (state.ornamentMode) {
+    drawOrnament();
+    return;
+  }
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -3654,6 +3867,31 @@ document.getElementById("fxBubbleColorInput").value = state.fxBubbleGlowColor;
 document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
   radio.checked = radio.value === state.mirrorMode;
 });
+
+// --- Ornament mode controls ---
+(function bindOrnamentControls() {
+  const bindColor = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = state[key];
+    el.addEventListener("input", (e) => { state[key] = e.target.value; buildPattern(); });
+  };
+  const bindToggle = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = state[key];
+    el.addEventListener("change", (e) => { state[key] = e.target.checked; buildPattern(); });
+  };
+  bindToggle("ornamentModeInput", "ornamentMode");
+  bindToggle("ornSparklesInput", "ornShowSparkles");
+  bindToggle("ornBeadsInput", "ornShowBeads");
+  bindColor("ornBgInput", "ornBg");
+  bindColor("ornDiamondColorInput", "ornDiamondColor");
+  bindColor("ornLeafColorInput", "ornLeafColor");
+  bindColor("ornSparkleColorInput", "ornSparkleColor");
+  bindColor("ornBeadColorInput", "ornBeadColor");
+})();
+
 updateTextSeedMeta(state.textSeedValue);
 syncInputs();
 resizeCanvas();
