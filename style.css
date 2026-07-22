@@ -388,8 +388,7 @@ input[type="color"]::-webkit-color-swatch {
   box-shadow: 0 2px 8px rgba(20, 22, 26, 0.08), 0 18px 50px rgba(20, 22, 26, 0.14);
 }
 
-#textAreaMarker,
-#logoPlaceholderMarker {
+#textAreaMarker {
   position: absolute;
   top: 50%;
   left: 50%;

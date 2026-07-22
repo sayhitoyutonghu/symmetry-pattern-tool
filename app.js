@@ -2,7 +2,6 @@ const canvas = document.getElementById("patternCanvas");
 const ctx = canvas.getContext("2d");
 const controls = document.getElementById("controls");
 const marker = document.getElementById("textAreaMarker");
-const logoMarker = document.getElementById("logoPlaceholderMarker");
 
 const DEFAULT_CANVAS_PADDING = 0;
 
@@ -12,11 +11,6 @@ const state = {
   canvasPadding: DEFAULT_CANVAS_PADDING,
   textAreaW: 38,
   textAreaH: 56,
-  logoX: 50,
-  logoY: 22,
-  logoW: 26,
-  logoH: 18,
-  logoOpacity: 1,
   density: 0.24,
   nodeDots: 0.5,
   flourishes: 0.55,
@@ -41,20 +35,16 @@ const state = {
   fxMetalShadow: 0.45,
   fxMetalQuality: 0.65,
   bgColor: "#f6f4ee",
-  bgColor2: "#e7e2d6",
-  bgGradient: false,
   bgAlpha: 1,
   strokeColor: "#111111",
   strokeAlpha: 1,
   backgroundImage: null,
-  logoImage: null,
   paths: [],
   progress: 1,
   seed: Date.now(),
 };
 
 let backgroundImageUrl;
-let logoImageUrl;
 
 // Decorative font for text-pattern mode — loaded async, falls back to Georgia
 let _patternFontFamily = 'Georgia, "Times New Roman", serif';
@@ -138,37 +128,11 @@ function drawImageCover(image) {
   ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
 }
 
-function drawLogoImage() {
-  if (!state.logoImage) return;
-  const rect = getLogoRect();
-  const imageRatio = state.logoImage.width / state.logoImage.height;
-  const rectRatio = rect.w / rect.h;
-  let drawW;
-  let drawH;
-  let drawX = rect.x;
-  let drawY = rect.y;
-
-  if (imageRatio > rectRatio) {
-    drawW = rect.w;
-    drawH = drawW / imageRatio;
-    drawY = rect.y + (rect.h - drawH) / 2;
-  } else {
-    drawH = rect.h;
-    drawW = drawH * imageRatio;
-    drawX = rect.x + (rect.w - drawW) / 2;
-  }
-
-  ctx.save();
-  ctx.globalAlpha = clamp(state.logoOpacity, 0, 1);
-  ctx.drawImage(state.logoImage, drawX, drawY, drawW, drawH);
-  ctx.restore();
-}
-
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-const PERCENT_KEYS = new Set(["textAreaW", "textAreaH", "logoX", "logoY", "logoW", "logoH"]);
+const PERCENT_KEYS = new Set(["textAreaW", "textAreaH"]);
 
 function syncInputs() {
   [...sliders, ...numberInputs].forEach((input) => {
@@ -188,7 +152,6 @@ function resizeCanvas() {
   canvas.width = Math.round(state.canvasWidth);
   canvas.height = Math.round(state.canvasHeight);
   updateMarker(true);
-  updateLogoMarker(true);
 }
 
 function getPatternPaddingPx() {
@@ -216,27 +179,13 @@ function getTextRect(pad = 0) {
   };
 }
 
-function getLogoRect() {
-  const w = (state.canvasWidth * state.logoW) / 100;
-  const h = (state.canvasHeight * state.logoH) / 100;
-  const cx = (state.canvasWidth * state.logoX) / 100;
-  const cy = (state.canvasHeight * state.logoY) / 100;
-  return { x: cx - w / 2, y: cy - h / 2, w, h };
-}
-
 function pointInTextRect(x, y, pad = 0) {
   const rect = getTextRect(pad);
   return x > rect.x && x < rect.x + rect.w && y > rect.y && y < rect.y + rect.h;
 }
 
-function pointInLogoRect(x, y, pad = 0) {
-  if (!state.logoImage) return false;
-  const rect = getLogoRect();
-  return x > rect.x - pad && x < rect.x + rect.w + pad && y > rect.y - pad && y < rect.y + rect.h + pad;
-}
-
 function pointBlocked(x, y, pad = 0) {
-  return pointInTextRect(x, y, pad) || pointInLogoRect(x, y, pad);
+  return pointInTextRect(x, y, pad);
 }
 
 function createSeedPoint(signX, signY, margin, gapPad) {
@@ -892,16 +841,7 @@ function draw() {
     drawImageCover(state.backgroundImage);
   }
 
-  if (state.bgGradient) {
-    // A graded ground gives the metal something to sit in; on a flat fill the
-    // material has no environment to contrast against and reads as plastic.
-    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    grad.addColorStop(0, hexToRgba(state.bgColor, state.bgAlpha));
-    grad.addColorStop(1, hexToRgba(state.bgColor2, state.bgAlpha));
-    ctx.fillStyle = grad;
-  } else {
-    ctx.fillStyle = hexToRgba(state.bgColor, state.bgAlpha);
-  }
+  ctx.fillStyle = hexToRgba(state.bgColor, state.bgAlpha);
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // The metal material shades the strokes as lit 3D bodies, so the flat stroke
@@ -921,7 +861,6 @@ function draw() {
     }
   }
   drawMetalFx();
-  drawLogoImage();
   ctx.restore();
 }
 
@@ -937,34 +876,6 @@ function updateMarker(force = false) {
       marker.style.transition = "opacity 0.5s";
       marker.style.opacity = "0";
     }, 500);
-  }
-}
-
-function updateLogoMarker(force = false) {
-  if (!state.logoImage) {
-    logoMarker.style.opacity = "0";
-    return;
-  }
-
-  const rect = canvas.getBoundingClientRect();
-  const logoRect = getLogoRect();
-  const scaleX = rect.width / state.canvasWidth;
-  const scaleY = rect.height / state.canvasHeight;
-  logoMarker.style.width = `${logoRect.w * scaleX}px`;
-  logoMarker.style.height = `${logoRect.h * scaleY}px`;
-  logoMarker.style.left = `${canvas.offsetLeft + (logoRect.x + logoRect.w / 2) * scaleX}px`;
-  logoMarker.style.top = `${canvas.offsetTop + (logoRect.y + logoRect.h / 2) * scaleY}px`;
-
-  if (!force) {
-    logoMarker.style.transition = "opacity 0.1s";
-    logoMarker.style.opacity = "0.9";
-    clearTimeout(updateLogoMarker.timeout);
-    updateLogoMarker.timeout = setTimeout(() => {
-      logoMarker.style.transition = "opacity 0.6s";
-      logoMarker.style.opacity = "0.45";
-    }, 500);
-  } else {
-    logoMarker.style.opacity = "0.45";
   }
 }
 
@@ -1057,40 +968,6 @@ function clearBackgroundImage() {
   draw();
 }
 
-async function handleLogoUpload(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  if (logoImageUrl) URL.revokeObjectURL(logoImageUrl);
-  const imageUrl = URL.createObjectURL(file);
-  const image = new Image();
-  try {
-    image.src = imageUrl;
-    await image.decode();
-    state.logoImage = image;
-    logoImageUrl = imageUrl;
-    document.getElementById("clearLogo").disabled = false;
-    document.getElementById("logoFileName").textContent = file.name;
-    updateLogoMarker(true);
-    buildPattern();
-  } catch {
-    URL.revokeObjectURL(imageUrl);
-    event.target.value = "";
-  }
-}
-
-function clearLogoImage() {
-  if (logoImageUrl) {
-    URL.revokeObjectURL(logoImageUrl);
-    logoImageUrl = undefined;
-  }
-  state.logoImage = null;
-  document.getElementById("logoUpload").value = "";
-  document.getElementById("clearLogo").disabled = true;
-  document.getElementById("logoFileName").textContent = "No logo image";
-  updateLogoMarker(true);
-  buildPattern();
-}
-
 function bindControls() {
   const rebuildKeys = new Set([
     "canvasWidth",
@@ -1106,10 +983,6 @@ function bindControls() {
     "taperStrength",
     "curveSmoothness",
     "noOverlapGap",
-    "logoX",
-    "logoY",
-    "logoW",
-    "logoH",
   ]);
 
   sliders.forEach((input) => {
@@ -1118,7 +991,6 @@ function bindControls() {
       state[key] = Number(input.value);
       syncInputs();
       if (key.startsWith("textArea")) updateMarker();
-      if (key.startsWith("logo")) updateLogoMarker();
       if (key === "canvasWidth" || key === "canvasHeight") resizeCanvas();
       if (rebuildKeys.has(key)) {
         buildPattern();
@@ -1151,14 +1023,6 @@ function bindControls() {
     });
   });
 
-  document.getElementById("bgGradientToggle").addEventListener("change", (event) => {
-    state.bgGradient = event.target.checked;
-    draw();
-  });
-  document.getElementById("bgColor2Input").addEventListener("input", (event) => {
-    state.bgColor2 = event.target.value;
-    draw();
-  });
   document.getElementById("fxMetalPresetInput").addEventListener("change", (event) => {
     state.fxMetalPreset = event.target.value;
     draw();
@@ -1197,18 +1061,13 @@ function bindControls() {
   });
   document.getElementById("bgUpload").addEventListener("change", handleBackgroundUpload);
   document.getElementById("clearBg").addEventListener("click", clearBackgroundImage);
-  document.getElementById("logoUpload").addEventListener("change", handleLogoUpload);
-  document.getElementById("clearLogo").addEventListener("click", clearLogoImage);
 
   window.addEventListener("resize", () => {
     updateMarker(true);
-    updateLogoMarker(true);
   });
 }
 
 document.getElementById("startFromBottomToggle").checked = state.startFromBottom;
-document.getElementById("bgGradientToggle").checked = state.bgGradient;
-document.getElementById("bgColor2Input").value = state.bgColor2;
 document.getElementById("fxMetalPresetInput").value = state.fxMetalPreset;
 document.getElementById("fxMetalTintInput").value = state.fxMetalTint;
 document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
@@ -1220,4 +1079,3 @@ syncInputs();
 resizeCanvas();
 bindControls();
 buildPattern();
-updateLogoMarker(true);

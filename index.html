@@ -16,7 +16,7 @@
       <div class="panel-head">
         <span class="panel-title">Symmetry Pattern</span>
         <div class="panel-actions">
-          <button id="generateButton" class="btn-primary">Generate</button>
+          <button id="generateButton" class="btn-primary">Randomize</button>
           <button id="downloadButton" class="btn-icon" title="Export PNG">↓</button>
         </div>
       </div>
@@ -144,14 +144,6 @@
             <div class="field-head"><label>Background</label></div>
             <input id="bgColorInput" type="color" value="#f6f4ee" />
           </div>
-          <label class="switch-row">
-            <input id="bgGradientToggle" type="checkbox" />
-            <span>Gradient Background</span>
-          </label>
-          <div class="field color-field">
-            <div class="field-head"><label>Gradient End</label></div>
-            <input id="bgColor2Input" type="color" value="#e7e2d6" />
-          </div>
           <div class="upload-row">
             <label class="upload-label">
               <input id="bgUpload" type="file" accept="image/*" />
@@ -202,50 +194,13 @@
         </div>
       </section>
 
-      <section class="group">
-        <button class="group-head" type="button">
-          <span>Logo</span>
-          <span class="chev"></span>
-        </button>
-        <div class="group-body">
-          <div class="upload-row">
-            <label class="upload-label">
-              <input id="logoUpload" type="file" accept="image/*" />
-              Upload Logo
-            </label>
-            <button id="clearLogo" class="btn-tiny" disabled>Clear</button>
-          </div>
-          <div id="logoFileName" class="file-meta">No logo image</div>
-          <div class="field">
-            <div class="field-head"><label>X Position</label><span class="val" data-val="logoX"></span></div>
-            <input data-key="logoX" type="range" min="5" max="95" step="1" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Y Position</label><span class="val" data-val="logoY"></span></div>
-            <input data-key="logoY" type="range" min="5" max="95" step="1" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Width</label><span class="val" data-val="logoW"></span></div>
-            <input data-key="logoW" type="range" min="5" max="70" step="1" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Height</label><span class="val" data-val="logoH"></span></div>
-            <input data-key="logoH" type="range" min="5" max="70" step="1" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Opacity</label><span class="val" data-val="logoOpacity"></span></div>
-            <input data-key="logoOpacity" type="range" min="0" max="1" step="0.01" />
-          </div>
-        </div>
-      </section>
     </aside>
 
     <main id="patternContainer" class="pattern">
       <canvas id="patternCanvas"></canvas>
       <div id="textAreaMarker"></div>
-      <div id="logoPlaceholderMarker"></div>
     </main>
 
-    <script src="./app.js?v=ui1"></script>
+    <script src="./app.js?v=ui2"></script>
   </body>
 </html>
