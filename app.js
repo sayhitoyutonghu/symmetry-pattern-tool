@@ -35,6 +35,7 @@ const state = {
   fxMetalQuality: 0.65,
   bgColor: "#f6f4ee",
   bgAlpha: 1,
+  bgTransparent: false,
   strokeColor: "#111111",
   strokeAlpha: 1,
   backgroundImage: null,
@@ -814,8 +815,10 @@ function drawMetalFx() {
   if (drop > 0.001) {
     const off = state.lineThickness * (0.35 + relief * 0.5);
     ctx.save();
-    ctx.globalAlpha = clamp(drop * 0.75, 0, 1);
-    ctx.globalCompositeOperation = "multiply";
+    ctx.globalAlpha = clamp(drop * 0.75, 0, 1) * (state.bgTransparent ? 0.5 : 1);
+    // "multiply" needs an opaque backdrop to darken; over transparency it would
+    // stamp solid black, so fall back to plain alpha compositing.
+    ctx.globalCompositeOperation = state.bgTransparent ? "source-over" : "multiply";
     ctx.filter = `blur(${(state.lineThickness * 0.55).toFixed(2)}px)`;
     ctx.drawImage(tintedMaskLayer(cover, "#000000", 1), off * 0.7, off, W, H);
     ctx.filter = "none";
@@ -830,6 +833,13 @@ function drawMetalFx() {
   ctx.restore();
 }
 
+// Show a checkerboard behind the canvas so on-screen transparency is legible,
+// and grey out the background colour it replaces.
+function syncTransparency() {
+  canvas.classList.toggle("transparent", state.bgTransparent);
+  document.getElementById("bgColorInput").disabled = state.bgTransparent;
+}
+
 function draw() {
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -838,8 +848,10 @@ function draw() {
     drawImageCover(state.backgroundImage);
   }
 
-  ctx.fillStyle = hexToRgba(state.bgColor, state.bgAlpha);
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!state.bgTransparent) {
+    ctx.fillStyle = hexToRgba(state.bgColor, state.bgAlpha);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
   // The metal material shades the strokes as lit 3D bodies, so the flat stroke
   // fill underneath it would only ever show through as a hard silhouette edge.
@@ -1033,6 +1045,11 @@ function bindControls() {
     syncInputs();
     draw();
   });
+  document.getElementById("bgTransparentToggle").addEventListener("change", (event) => {
+    state.bgTransparent = event.target.checked;
+    syncTransparency();
+    draw();
+  });
   document.getElementById("bgColorInput").addEventListener("input", (event) => {
     state.bgColor = event.target.value;
     draw();
@@ -1080,6 +1097,7 @@ function bindControls() {
 
 document.getElementById("startFromBottomToggle").checked = state.startFromBottom;
 document.getElementById("bgColorInput").value = state.bgColor;
+document.getElementById("bgTransparentToggle").checked = state.bgTransparent;
 document.getElementById("fxMetalPresetInput").value = state.fxMetalPreset;
 document.getElementById("fxMetalTintInput").value = state.fxMetalTint;
 document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
@@ -1088,6 +1106,7 @@ document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
 
 
 syncInputs();
+syncTransparency();
 resizeCanvas();
 bindControls();
 buildPattern();

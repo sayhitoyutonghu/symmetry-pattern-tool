@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./style.css?v=ui10" />
     <!-- Safari Canvas ctx.filter polyfill to support blur/glow effects -->
     <script src="https://cdn.jsdelivr.net/npm/context-filter-polyfill/dist/index.min.js"></script>
   </head>
@@ -54,6 +54,10 @@
             <div class="field-head"><label>Blank Space Height</label><span class="val" data-val="textAreaH"></span></div>
             <input data-key="textAreaH" type="range" min="0" max="90" step="1" />
           </div>
+          <label class="switch-row">
+            <input id="bgTransparentToggle" type="checkbox" />
+            <span>Transparent Background</span>
+          </label>
           <div class="field color-field">
             <div class="field-head"><label>Background</label></div>
             <input id="bgColorInput" type="color" value="#f6f4ee" />
@@ -198,6 +202,6 @@
       <div id="textAreaMarker"></div>
     </main>
 
-    <script src="./app.js?v=ui9"></script>
+    <script src="./app.js?v=ui10"></script>
   </body>
 </html>
