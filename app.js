@@ -17,23 +17,23 @@ const state = {
   logoW: 26,
   logoH: 18,
   logoOpacity: 1,
-  density: 0.28,
-  straightLines: 0.2,
-  flourishes: 0.42,
+  density: 0.24,
+  straightLines: 0,
+  flourishes: 0.55,
   blankAreas: 0.08,
-  lineThickness: 30,
-  widthVariation: 0.42,
-  taperStrength: 0.58,
-  sharpTips: 0.7,
-  curveSmoothness: 0.7,
+  lineThickness: 11,
+  widthVariation: 0.5,
+  taperStrength: 0.85,
+  sharpTips: 0.8,
+  curveSmoothness: 0.75,
   circleGuideDensity: 0.52,
   circleGuideInfluence: 0.68,
   circleMinRadius: 2.4,
   circleMaxRadius: 9.5,
-  noOverlapGap: 26,
+  noOverlapGap: 20,
   mirrorMode: "quad",
   startFromBottom: true,
-  useCircleScaffold: true,
+  useCircleScaffold: false,
   showGuides: false,
   crayonEffect: false,
   crayonStrength: 0.45,
@@ -55,7 +55,7 @@ const state = {
   fxHalftoneNoise: false,
   fxHalftoneMix: 0.38,
   // --- Metal / 3D material ---
-  fxMetal: true,
+  fxMetal: false,
   fxMetalPreset: "chrome",
   fxMetalRelief: 0.55,
   fxMetalLightAngle: 135,
@@ -68,30 +68,16 @@ const state = {
   fxMetalQuality: 0.5,
   visibleTime: 1.3,
   speed: 0.012,
-  colorChoice: "white outlines",
-  bgColor: "#4a5768",
-  bgColor2: "#161b24",
-  bgGradient: true,
+  colorChoice: "black",
+  bgColor: "#f6f4ee",
+  bgColor2: "#e7e2d6",
+  bgGradient: false,
   bgAlpha: 1,
-  strokeColor: "#ffffff",
+  strokeColor: "#111111",
   strokeAlpha: 1,
   outlineStroke: false,
-  outlineColor: "#f8f8f6",
+  outlineColor: "#f6f4ee",
   outlineAlpha: 1,
-  // --- Flat Ornament mode (Image #29 aesthetic) ---
-  ornamentMode: false,
-  ornBg: "#ecebe3",
-  ornDiamondColor: "#e8402a",
-  ornLeafColor: "#5b5a39",
-  ornSparkleColor: "#e9a7c6",
-  ornBeadColor: "#e8402a",
-  ornDiamondSize: 0.2,
-  ornBladeLength: 0.34,
-  ornBladeCount: 3,
-  ornShowSparkles: true,
-  ornShowBeads: true,
-  ornGlossy: true,
-  ornGloss: 0.85,
   backgroundImage: null,
   logoImage: null,
   animate: false,
@@ -312,22 +298,6 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function findNearestGuideCircle(x, y, maxDistance) {
-  if (!state.guideCircles.length) return null;
-  let nearest = null;
-  let best = Infinity;
-  for (const circle of state.guideCircles) {
-    const centerDist = Math.hypot(x - circle.x, y - circle.y);
-    if (centerDist > circle.r + maxDistance) continue;
-    const edgeDist = Math.abs(centerDist - circle.r);
-    if (edgeDist < best) {
-      best = edgeDist;
-      nearest = { circle, centerDist, edgeDist };
-    }
-  }
-  return nearest;
-}
-
 function syncInputs() {
   [...sliders, ...numberInputs].forEach((input) => {
     const key = input.dataset.key;
@@ -415,14 +385,6 @@ function segmentHitsBlocked(a, b, pad = 0, samples = 10) {
     if (pointBlocked(x, y, pad)) return true;
   }
   return false;
-}
-
-function pushAwayFromCenter(point, amount) {
-  const cx = state.canvasWidth / 2;
-  const cy = state.canvasHeight / 2;
-  const angle = Math.atan2(point.y - cy, point.x - cx);
-  point.x += Math.cos(angle) * amount;
-  point.y += Math.sin(angle) * amount;
 }
 
 function createBlankZones() {
@@ -757,75 +719,97 @@ function createCurlPath(signX, signY, options = {}) {
   const minSide = Math.min(state.canvasWidth, state.canvasHeight);
   const margin = getPatternSafeMarginPx();
   const gapPad = minSide * 0.02;
-  const guideInfluence = state.useCircleScaffold ? clamp(options.circleGuideInfluence ?? state.circleGuideInfluence, 0, 1) : 0;
-  const points = [];
-  const straightRatio = clamp(options.straightLines ?? state.straightLines, 0, 1);
-  const straight = chance(straightRatio);
   const smoothness = clamp(options.curveSmoothness ?? state.curveSmoothness, 0, 1);
   const start = createSeedPoint(signX, signY, margin, gapPad);
+
+  // Fluid swash strand. Direction is driven by a curvature profile — a couple
+  // of slow sine terms plus a gentle bias — so the heading is always C1-smooth
+  // and the line reads as one continuous calligraphic gesture. Per-step angle
+  // noise (the old approach) can only ever produce wobble, never flow.
+  const length = minSide * rand(0.22, 0.85) * (0.7 + smoothness * 0.4);
+  const steps = Math.round(clamp(length / (minSide * 0.006), 60, 200));
+  const ds = length / steps;
+
+  let heading = state.startFromBottom
+    ? -Math.PI / 2 + rand(-0.8, 0.8)
+    : Math.atan2(-signY, -signX) + rand(-0.9, 0.9);
+
+  // Turn-rate profile (radians per step). Low frequencies → long S-curves.
+  const f1 = rand(0.5, 1.6);
+  const f2 = rand(1.8, 3.6);
+  const a1 = rand(0.025, 0.075) * (1.35 - smoothness * 0.7);
+  const a2 = rand(0.006, 0.028) * (1.35 - smoothness * 0.9);
+  const ph1 = rand(0, Math.PI * 2);
+  const ph2 = rand(0, Math.PI * 2);
+  const bias = rand(-0.014, 0.014);
+
+  // Optional terminals: wind the tail (and sometimes the head) into a spiral
+  // by ramping the turn rate while shrinking the step, like a swash curl.
+  const tailCurl = chance(0.6);
+  const headCurl = !tailCurl || chance(0.25);
+  const tailDir = chance(0.5) ? 1 : -1;
+  const headDir = chance(0.5) ? 1 : -1;
+  const tailStart = rand(0.7, 0.85);
+  const headEnd = rand(0.1, 0.2);
+
+  const points = [];
   let x = start.x;
   let y = start.y;
-  let angle = state.startFromBottom
-    ? -Math.PI / 2 + rand(-0.95, 0.95) + signX * rand(-0.24, 0.24)
-    : Math.atan2(signY, signX) + rand(-1.8, 1.8);
-  const steps = straight ? rand(7, 15) : rand(46, 116);
-  const stepSize = straight ? rand(minSide * 0.012, minSide * 0.03) : rand(minSide * 0.004, minSide * 0.012);
-  const curl = rand(-0.17, 0.17) * (1 - smoothness * 0.35);
-  const wave = rand(0.04, 0.2) * (1 - smoothness * 0.2);
-  const turnEvery = rand(3.5, 12.5);
+  points.push({ x, y });
 
-  for (let i = 0; i < steps; i += 1) {
-    const t = i / Math.max(1, steps - 1);
-    if (!straight) {
-      angle += curl + Math.sin(t * Math.PI * turnEvery) * wave + rand(-0.18, 0.18) * (1 - smoothness * 0.78);
-    } else {
-      angle += rand(-0.015, 0.015);
+  for (let i = 1; i <= steps; i += 1) {
+    const t = i / steps;
+    let turn = bias + a1 * Math.sin(t * Math.PI * 2 * f1 + ph1) + a2 * Math.sin(t * Math.PI * 2 * f2 + ph2);
+    let step = ds;
+
+    if (tailCurl && t > tailStart) {
+      const u = (t - tailStart) / (1 - tailStart);
+      turn = turn * (1 - u) + tailDir * (0.09 + u * u * 0.5);
+      step = ds * (1 - u * 0.55);
+    } else if (headCurl && t < headEnd) {
+      const u = 1 - t / headEnd;
+      turn = turn * (1 - u) + headDir * (0.09 + u * u * 0.5);
+      step = ds * (1 - u * 0.55);
     }
 
-    if (guideInfluence > 0.01) {
-      const nearest = findNearestGuideCircle(x, y, minSide * 0.18);
-      if (nearest) {
-        const centerAngle = Math.atan2(y - nearest.circle.y, x - nearest.circle.x);
-        const tangentDirection = signX < 0 ? -1 : 1;
-        const tangentAngle = centerAngle + tangentDirection * Math.PI / 2;
-        angle = blendAngle(angle, tangentAngle, 0.1 + guideInfluence * 0.45);
-        const targetRadius = nearest.circle.r + rand(-nearest.circle.r * 0.16, nearest.circle.r * 0.2);
-        const radialError = targetRadius - nearest.centerDist;
-        x += Math.cos(centerAngle) * radialError * (0.08 + guideInfluence * 0.2);
-        y += Math.sin(centerAngle) * radialError * (0.08 + guideInfluence * 0.2);
-      }
+    heading += turn;
+
+    // Soft edge steering: blend the heading back toward the canvas centre as
+    // the strand nears a margin, instead of clamping (which drew wall-slides).
+    const edge = minSide * 0.11;
+    const dLeft = x - margin, dRight = state.canvasWidth - margin - x;
+    const dTop = y - margin, dBottom = state.canvasHeight - margin - y;
+    const dEdge = Math.min(dLeft, dRight, dTop, dBottom);
+    if (dEdge < edge) {
+      const inward = Math.atan2(state.canvasHeight / 2 - y, state.canvasWidth / 2 - x);
+      heading = blendAngle(heading, inward, (1 - dEdge / edge) * 0.4);
     }
 
-    x += Math.cos(angle) * stepSize * rand(0.75, 1.35);
-    y += Math.sin(angle) * stepSize * rand(0.75, 1.35);
-    if (state.startFromBottom) {
-      y -= stepSize * rand(0.12, 0.48);
-      x += signX * stepSize * rand(-0.08, 0.14);
-    }
+    const nx = x + Math.cos(heading) * step;
+    const ny = y + Math.sin(heading) * step;
 
-    if (pointBlocked(x, y, gapPad)) {
-      const p = { x, y };
-      pushAwayFromCenter(p, stepSize * 2.8);
-      x = p.x;
-      y = p.y;
-      angle += Math.PI * rand(0.25, 0.75);
-    }
+    // A blocked zone ends the strand cleanly — a kinked detour reads as a
+    // glitch in an otherwise continuous gesture.
+    if (pointBlocked(nx, ny, gapPad)) break;
+    if (nx < margin || nx > state.canvasWidth - margin || ny < margin || ny > state.canvasHeight - margin) break;
 
-    x = clamp(x, margin, state.canvasWidth - margin);
-    y = clamp(y, margin, state.canvasHeight - margin);
+    x = nx;
+    y = ny;
     points.push({ x, y });
   }
 
-  const smoothed = smoothPolyline(points, Math.round(1 + smoothness * 3), 0.5 + smoothness * 0.38);
+  if (points.length < 16) return { type: "curl", points: [], width: 1, phase: 0, branches: [] };
+
+  const smoothed = smoothPolyline(points, 1, 0.5);
   return {
-    type: straight ? "straight" : "curl",
+    type: "curl",
     points: simplifyBlockedSegments(smoothed),
-    width: rand(0.45, 1.2) * state.lineThickness,
+    // Mix bold swashes with hairline accents, like a lettering artist's sheet.
+    width: (chance(0.3) ? rand(0.22, 0.45) : rand(0.6, 1.3)) * state.lineThickness,
     phase: rand(0, Math.PI * 2),
     branches: [],
   };
 }
-
 function smoothPolyline(points, passes = 2, pull = 0.75) {
   if (points.length < 3) return points;
   let current = points.map((p) => ({ ...p }));
@@ -855,7 +839,7 @@ function simplifyBlockedSegments(points) {
 function decoratePath(path, options = {}) {
   if (path.points.length < 8 || path.type === "straight" || path.type === "script") return;
   const flourishLevel = clamp(options.flourishes ?? state.flourishes, 0, 1);
-  const branchCount = Math.floor(rand(0, 2.4) * flourishLevel);
+  const branchCount = Math.floor(rand(0.6, 3.4) * flourishLevel);
   for (let i = 0; i < branchCount; i += 1) {
     const index = Math.floor(rand(2, path.points.length - 3));
     const prev = path.points[index - 1];
@@ -867,43 +851,39 @@ function decoratePath(path, options = {}) {
 }
 
 function createBranch(anchor, tangent, width, flourishLevel = state.flourishes) {
+  // A branch is a smooth arc that peels off the parent: constant-sign turn
+  // rate that eases up along its length, optionally winding into a curl.
   const points = [];
-  const length = rand(18, 70) * (state.canvasWidth + state.canvasHeight) / 2800;
+  const minSide = Math.min(state.canvasWidth, state.canvasHeight);
+  const length = minSide * rand(0.06, 0.2) * (0.6 + flourishLevel * 0.7);
+  const steps = Math.floor(rand(18, 40));
+  const ds = length / steps;
   const side = chance(0.5) ? 1 : -1;
-  let angle = tangent + side * rand(0.75, 1.4);
+  const baseTurn = side * rand(0.015, 0.06);
+  const curl = chance(0.4 + flourishLevel * 0.4);
+  const curlStart = rand(0.6, 0.8);
+  let angle = tangent + side * rand(0.5, 1.1);
   let x = anchor.x;
   let y = anchor.y;
-  const steps = Math.floor(rand(12, 28));
 
-  for (let i = 0; i < steps; i += 1) {
-    angle += side * rand(0.02, 0.16);
-    x += Math.cos(angle) * (length / steps);
-    y += Math.sin(angle) * (length / steps);
-    if (pointBlocked(x, y, 6)) break;
-    points.push({ x, y });
-    if (flourishLevel > 0.35 && i === steps - 1 && chance(flourishLevel)) {
-      points.push(...createSpiral({ x, y }, angle, side, length * 0.34));
-    }
-  }
-
-  return { points, width: Math.max(1, width * rand(0.25, 0.52)) };
-}
-
-function createSpiral(anchor, angle, side, radius) {
-  const points = [];
-  const loops = rand(1.1, 2.4);
-  const steps = Math.floor(rand(16, 34));
   for (let i = 0; i < steps; i += 1) {
     const t = i / steps;
-    const r = radius * (1 - t);
-    const a = angle + side * t * Math.PI * 2 * loops;
-    const x = anchor.x + Math.cos(a) * r;
-    const y = anchor.y + Math.sin(a) * r;
-    if (!pointBlocked(x, y, 6)) points.push({ x, y });
+    let turn = baseTurn * (0.5 + t * 0.9);
+    let step = ds;
+    if (curl && t > curlStart) {
+      const u = (t - curlStart) / (1 - curlStart);
+      turn = turn + side * u * u * 0.5;
+      step = ds * (1 - u * 0.66);
+    }
+    angle += turn;
+    x += Math.cos(angle) * step;
+    y += Math.sin(angle) * step;
+    if (pointBlocked(x, y, 6)) break;
+    points.push({ x, y });
   }
-  return points;
-}
 
+  return { points: smoothPolyline(points, 1, 0.5), width: Math.max(1, width * rand(0.3, 0.55)) };
+}
 function mirrorPoint(point, mirrorX, mirrorY) {
   return {
     x: mirrorX ? state.canvasWidth - point.x : point.x,
@@ -983,14 +963,6 @@ function addPointsToMap(points, cellMap, cellSize) {
 function buildPattern() {
   state.seed = Date.now() >>> 0;
 
-  // Flat Ornament mode bypasses the organic stroke pipeline entirely.
-  if (state.ornamentMode) {
-    state.paths = [];
-    state.progress = 1;
-    draw();
-    return;
-  }
-
   const densityValue = clamp(state.density, 0.15, 1);
   const straightValue = clamp(state.straightLines, 0, 1);
   const flourishesValue = clamp(state.flourishes, 0, 1);
@@ -1008,8 +980,8 @@ function buildPattern() {
   createBlankZones();
 
   createCircleGuides(runtime);
-  const count = Math.floor(7 + densityValue * 20);
-  const maxAttempts = count * 24;
+  const count = Math.floor(10 + densityValue * 26);
+  const maxAttempts = count * 60;
   const collisionMap = new Map();
   const collisionCell = Math.max(10, state.lineThickness * 1.3);
   const minDistance = Math.max(clamp(state.noOverlapGap, 4, 80), state.lineThickness * 1.45);
@@ -1030,7 +1002,10 @@ function buildPattern() {
     if (path.points.length <= 2) continue;
     const samples = collectPathPoints(path);
     if (!samples.length) continue;
-    if (pathOverlaps(samples, collisionMap, collisionCell, minDistance)) continue;
+    // Reference patterns interlace: some strands are allowed to cross freely,
+    // the rest keep their distance so the composition doesn't clot.
+    const freeCrossing = chance(0.24);
+    if (!freeCrossing && pathOverlaps(samples, collisionMap, collisionCell, minDistance)) continue;
     addPointsToMap(samples, collisionMap, collisionCell);
     basePaths.push(path);
   }
@@ -2230,316 +2205,7 @@ function tintLayer(layer, color) {
   lctx.globalCompositeOperation = "source-over";
 }
 
-// ---------------------------------------------------------------------------
-// Flat Ornament mode — a dedicated symmetric vector renderer (Image #29 look):
-// a central diamond flanked by radiating flame/leaf flourishes, corner sparkles
-// and beaded cardinal tips. Flat solid fills, quad-mirrored, seeded by name.
-// ---------------------------------------------------------------------------
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// One flame/leaf flourish: a curving, tapering blade plus a few pointed licks.
-// Returns an array of solid polygons (absolute canvas points).
-function ornBladePolys(rng, ox, oy, heading, length, baseWidth) {
-  const polys = [];
-  const steps = 22;
-  const curl = (rng() * 2 - 1) * 1.35;
-  const widthPow = 0.5 + rng() * 0.4;
-  const dl = length / steps;
-  const spine = [];
-  let x = ox, y = oy, ang = heading;
-  for (let i = 0; i <= steps; i += 1) {
-    spine.push({ x, y, ang });
-    ang += curl / steps;
-    x += Math.cos(ang) * dl;
-    y += Math.sin(ang) * dl;
-  }
-  const left = [], right = [];
-  for (let i = 0; i < spine.length; i += 1) {
-    const t = i / steps;
-    const w = baseWidth * 0.5 * Math.pow(1 - t, widthPow);
-    const s = spine[i];
-    const nx = Math.cos(s.ang + Math.PI / 2);
-    const ny = Math.sin(s.ang + Math.PI / 2);
-    left.push({ x: s.x + nx * w, y: s.y + ny * w });
-    right.push({ x: s.x - nx * w, y: s.y - ny * w });
-  }
-  polys.push(left.concat(right.reverse()));
-
-  const licks = 1 + Math.floor(rng() * 2);
-  for (let k = 0; k < licks; k += 1) {
-    const ti = 0.2 + rng() * 0.5;
-    const idx = Math.floor(ti * steps);
-    const s = spine[idx];
-    const side = rng() < 0.5 ? 1 : -1;
-    const lang = s.ang + side * (0.45 + rng() * 0.6);
-    const llen = length * (0.24 + rng() * 0.24);
-    const lw = baseWidth * 0.52 * (1 - ti);
-    const tipx = s.x + Math.cos(lang) * llen;
-    const tipy = s.y + Math.sin(lang) * llen;
-    const bx = Math.cos(lang + Math.PI / 2) * lw;
-    const by = Math.sin(lang + Math.PI / 2) * lw;
-    polys.push([
-      { x: s.x + bx, y: s.y + by },
-      { x: tipx, y: tipy },
-      { x: s.x - bx, y: s.y - by },
-    ]);
-  }
-  return polys;
-}
-
-function ornFillPoly(pts, cx, cy, sx, sy) {
-  ctx.beginPath();
-  for (let i = 0; i < pts.length; i += 1) {
-    const px = cx + (pts[i].x - cx) * sx;
-    const py = cy + (pts[i].y - cy) * sy;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-}
-
-function ornShade(hex, target, amt) {
-  return rgbToRgba(mixRgb(hex, target, amt), 1);
-}
-
-// Render a polygon as a glossy 3D ceramic/glazed shape: a volume gradient with
-// ambient occlusion, a soft sheen and a sharp specular hotspot (light from
-// upper-left), plus a soft drop shadow — approximating the Netflix Golden look.
-function glossyFillPts(pts, baseHex) {
-  if (pts.length < 3) return;
-  const gloss = clamp(state.ornGloss, 0, 1);
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const p of pts) {
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
-  }
-  const w = Math.max(1, maxX - minX);
-  const h = Math.max(1, maxY - minY);
-  const big = Math.max(w, h);
-  const path = new Path2D();
-  pts.forEach((p, i) => (i === 0 ? path.moveTo(p.x, p.y) : path.lineTo(p.x, p.y)));
-  path.closePath();
-
-  // Soft drop shadow.
-  ctx.save();
-  ctx.shadowColor = "rgba(24, 20, 34, 0.32)";
-  ctx.shadowBlur = big * 0.06;
-  ctx.shadowOffsetX = big * 0.012;
-  ctx.shadowOffsetY = big * 0.03;
-  ctx.fillStyle = ornShade(baseHex, "#000000", 0.12);
-  ctx.fill(path);
-  ctx.restore();
-
-  ctx.save();
-  ctx.clip(path);
-  // Volume gradient (top-lit).
-  const g = ctx.createLinearGradient(minX, minY, minX + w * 0.15, maxY);
-  g.addColorStop(0, ornShade(baseHex, "#ffffff", 0.42 * gloss));
-  g.addColorStop(0.5, baseHex);
-  g.addColorStop(1, ornShade(baseHex, "#0a0a12", 0.5 * gloss));
-  ctx.fillStyle = g;
-  ctx.fillRect(minX, minY, w, h);
-  // Ambient occlusion, lower-right.
-  const ao = ctx.createRadialGradient(minX + w * 0.7, minY + h * 0.82, 0, minX + w * 0.7, minY + h * 0.82, big * 0.78);
-  ao.addColorStop(0, `rgba(0,0,0,${0.34 * gloss})`);
-  ao.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = ao;
-  ctx.fillRect(minX, minY, w, h);
-  // Broad sheen, upper-left.
-  const sheen = ctx.createRadialGradient(minX + w * 0.34, minY + h * 0.26, 0, minX + w * 0.34, minY + h * 0.26, big * 0.62);
-  sheen.addColorStop(0, `rgba(255,255,255,${0.5 * gloss})`);
-  sheen.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = sheen;
-  ctx.fillRect(minX, minY, w, h);
-  // Sharp specular hotspot.
-  const spec = ctx.createRadialGradient(minX + w * 0.4, minY + h * 0.17, 0, minX + w * 0.4, minY + h * 0.17, big * 0.16);
-  spec.addColorStop(0, `rgba(255,255,255,${0.92 * gloss})`);
-  spec.addColorStop(0.55, `rgba(255,255,255,${0.16 * gloss})`);
-  spec.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = spec;
-  ctx.fillRect(minX, minY, w, h);
-  ctx.restore();
-}
-
-function ornFillPolyStyled(pts, cx, cy, sx, sy, baseHex) {
-  if (!state.ornGlossy) {
-    ctx.fillStyle = baseHex;
-    ornFillPoly(pts, cx, cy, sx, sy);
-    return;
-  }
-  const tpts = pts.map((p) => ({ x: cx + (p.x - cx) * sx, y: cy + (p.y - cy) * sy }));
-  glossyFillPts(tpts, baseHex);
-}
-
-function ornSparkle(x, y, r, color) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  const inner = r * 0.16;
-  for (let i = 0; i < 8; i += 1) {
-    const a = (i * Math.PI) / 4 - Math.PI / 2;
-    const rad = i % 2 === 0 ? r : inner;
-    const px = x + Math.cos(a) * rad;
-    const py = y + Math.sin(a) * rad;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-}
-
-function glossyEllipse(x, y, rx, ry, rot, baseHex) {
-  const gloss = clamp(state.ornGloss, 0, 1);
-  ctx.save();
-  ctx.shadowColor = "rgba(24, 20, 34, 0.3)";
-  ctx.shadowBlur = ry * 0.6;
-  ctx.shadowOffsetY = ry * 0.35;
-  ctx.fillStyle = ornShade(baseHex, "#000000", 0.1);
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
-  ctx.clip();
-  const g = ctx.createRadialGradient(x - rx * 0.35, y - ry * 0.45, 0, x, y, Math.max(rx, ry) * 1.15);
-  g.addColorStop(0, ornShade(baseHex, "#ffffff", 0.55 * gloss));
-  g.addColorStop(0.5, baseHex);
-  g.addColorStop(1, ornShade(baseHex, "#0a0a12", 0.5 * gloss));
-  ctx.fillStyle = g;
-  ctx.fillRect(x - rx * 1.5, y - ry * 1.5, rx * 3, ry * 3);
-  const spec = ctx.createRadialGradient(x - rx * 0.32, y - ry * 0.5, 0, x - rx * 0.32, y - ry * 0.5, Math.max(rx, ry) * 0.5);
-  spec.addColorStop(0, `rgba(255,255,255,${0.9 * gloss})`);
-  spec.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = spec;
-  ctx.fillRect(x - rx * 1.5, y - ry * 1.5, rx * 3, ry * 3);
-  ctx.restore();
-}
-
-function ornBeadStack(x, y, dir, r0, count, color) {
-  let px = x, py = y, r = r0;
-  for (let i = 0; i < count; i += 1) {
-    if (state.ornGlossy) {
-      glossyEllipse(px, py, r * 1.35, r, dir, color);
-    } else {
-      ctx.fillStyle = color;
-      ctx.save();
-      ctx.translate(px, py);
-      ctx.rotate(dir);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, r * 1.35, r, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-    px += Math.cos(dir) * r * 2.05;
-    py += Math.sin(dir) * r * 2.05;
-    r *= 0.72;
-  }
-}
-
-function ornDiamond(cx, cy, rx, ry, color) {
-  if (state.ornGlossy) {
-    glossyFillPts([
-      { x: cx, y: cy - ry },
-      { x: cx + rx, y: cy },
-      { x: cx, y: cy + ry },
-      { x: cx - rx, y: cy },
-    ], color);
-    return;
-  }
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - ry);
-  ctx.lineTo(cx + rx, cy);
-  ctx.lineTo(cx, cy + ry);
-  ctx.lineTo(cx - rx, cy);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function drawOrnament() {
-  const W = canvas.width;
-  const H = canvas.height;
-  const cx = W / 2;
-  const cy = H / 2;
-  const minSide = Math.min(W, H);
-
-  ctx.save();
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = state.ornBg;
-  ctx.fillRect(0, 0, W, H);
-
-  const seed = (state.seed >>> 0) || 1;
-  const rng = mulberry32(seed);
-
-  const dR = minSide * clamp(state.ornDiamondSize, 0.05, 0.4);   // diamond half-height
-  const dRx = dR * 0.72;                                         // diamond half-width
-  const bladeLen = minSide * clamp(state.ornBladeLength, 0.1, 0.6);
-  const bladeW = minSide * 0.095;
-  const perQuad = Math.max(1, Math.round(state.ornBladeCount));
-
-  // Build one canonical cluster in the top-right quadrant: blades emanate from
-  // the diamond's right flank, fanning up-and-outward.
-  const cluster = [];
-  const baseX = cx + dRx * 0.5;
-  for (let i = 0; i < perQuad; i += 1) {
-    const f = perQuad === 1 ? 0.5 : i / (perQuad - 1);
-    const oy = cy - dR * (0.15 + f * 0.55);
-    const ox = baseX + dRx * 0.25 * f;
-    const heading = -Math.PI * (0.06 + f * 0.36) + (rng() - 0.5) * 0.18; // up-right fan
-    const len = bladeLen * (0.82 + rng() * 0.4);
-    const polys = ornBladePolys(rng, ox, oy, heading, len, bladeW * (0.85 + rng() * 0.4));
-    cluster.push(...polys);
-  }
-
-  // Flame/leaf flourishes — quad-mirrored.
-  const reflect = [[1, 1], [-1, 1], [1, -1], [-1, -1]];
-  for (const [sx, sy] of reflect) {
-    for (const poly of cluster) ornFillPolyStyled(poly, cx, cy, sx, sy, state.ornLeafColor);
-  }
-
-  // Beaded cardinal tips (top/bottom/left/right), pointing outward from diamond.
-  if (state.ornShowBeads) {
-    const beadR = minSide * 0.02;
-    ornBeadStack(cx, cy - dR, -Math.PI / 2, beadR, 4, state.ornBeadColor);
-    ornBeadStack(cx, cy + dR, Math.PI / 2, beadR, 4, state.ornBeadColor);
-    ornBeadStack(cx - dRx, cy, Math.PI, beadR, 3, state.ornBeadColor);
-    ornBeadStack(cx + dRx, cy, 0, beadR, 3, state.ornBeadColor);
-  }
-
-  // Corner sparkles.
-  if (state.ornShowSparkles) {
-    const sr = minSide * 0.03;
-    const off = minSide * 0.34;
-    ornSparkle(cx - off, cy - off, sr, state.ornSparkleColor);
-    ornSparkle(cx + off, cy - off, sr, state.ornSparkleColor);
-    ornSparkle(cx - off, cy + off, sr, state.ornSparkleColor);
-    ornSparkle(cx + off, cy + off, sr, state.ornSparkleColor);
-  }
-
-  // Central diamond on top.
-  ornDiamond(cx, cy, dRx, dR, state.ornDiamondColor);
-
-  drawLogoImage();
-  ctx.restore();
-}
-
 function draw() {
-  if (state.ornamentMode) {
-    drawOrnament();
-    return;
-  }
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -3165,30 +2831,6 @@ document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
   radio.checked = radio.value === state.mirrorMode;
 });
 
-// --- Ornament mode controls ---
-(function bindOrnamentControls() {
-  const bindColor = (id, key) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = state[key];
-    el.addEventListener("input", (e) => { state[key] = e.target.value; buildPattern(); });
-  };
-  const bindToggle = (id, key) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = state[key];
-    el.addEventListener("change", (e) => { state[key] = e.target.checked; buildPattern(); });
-  };
-  bindToggle("ornamentModeInput", "ornamentMode");
-  bindToggle("ornSparklesInput", "ornShowSparkles");
-  bindToggle("ornBeadsInput", "ornShowBeads");
-  bindToggle("ornGlossyInput", "ornGlossy");
-  bindColor("ornBgInput", "ornBg");
-  bindColor("ornDiamondColorInput", "ornDiamondColor");
-  bindColor("ornLeafColorInput", "ornLeafColor");
-  bindColor("ornSparkleColorInput", "ornSparkleColor");
-  bindColor("ornBeadColorInput", "ornBeadColor");
-})();
 
 syncInputs();
 resizeCanvas();

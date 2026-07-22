@@ -33,63 +33,6 @@
       <div id="controlBlocksContainer">
         <section class="control-block">
           <div class="control-title">
-            <p>Ornament</p>
-          </div>
-          <label class="checkbox-row">
-            <input type="checkbox" id="ornamentModeInput" />
-            <span>Flat Ornament Mode</span>
-          </label>
-          <div class="field">
-            <label>Diamond Size</label>
-            <input data-key="ornDiamondSize" type="range" min="0.05" max="0.4" step="0.005" />
-          </div>
-          <div class="field">
-            <label>Flourish Length</label>
-            <input data-key="ornBladeLength" type="range" min="0.12" max="0.55" step="0.005" />
-          </div>
-          <div class="field">
-            <label>Flourishes / Quadrant</label>
-            <input data-key="ornBladeCount" type="range" min="1" max="6" step="1" />
-          </div>
-          <label class="checkbox-row">
-            <input type="checkbox" id="ornSparklesInput" checked />
-            <span>Corner Sparkles</span>
-          </label>
-          <label class="checkbox-row">
-            <input type="checkbox" id="ornBeadsInput" checked />
-            <span>Beaded Tips</span>
-          </label>
-          <label class="checkbox-row">
-            <input type="checkbox" id="ornGlossyInput" checked />
-            <span>3D Glossy Material</span>
-          </label>
-          <div class="field">
-            <label>Gloss Strength</label>
-            <input data-key="ornGloss" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Background</label>
-            <input id="ornBgInput" type="color" value="#ecebe3" />
-          </div>
-          <div class="field">
-            <label>Diamond</label>
-            <input id="ornDiamondColorInput" type="color" value="#e8402a" />
-          </div>
-          <div class="field">
-            <label>Flourish (Leaf)</label>
-            <input id="ornLeafColorInput" type="color" value="#5b5a39" />
-          </div>
-          <div class="field">
-            <label>Sparkle</label>
-            <input id="ornSparkleColorInput" type="color" value="#e9a7c6" />
-          </div>
-          <div class="field">
-            <label>Beads</label>
-            <input id="ornBeadColorInput" type="color" value="#e8402a" />
-          </div>
-        </section>
-        <section class="control-block">
-          <div class="control-title">
             <p>Canvas</p>
           </div>
           <div class="canvas-buttons" id="canvasPresets">
@@ -259,7 +202,7 @@
           </div>
           <div id="colorControls" class="color-controls">
             <label class="color-option">
-              <input type="radio" name="colorChoice" value="black" />
+              <input type="radio" name="colorChoice" value="black" checked />
               <span class="swatch black"></span>
             </label>
             <label class="color-option">
@@ -277,15 +220,15 @@
           </div>
           <div class="field">
             <label>Canvas Fill Color</label>
-            <input id="bgColorInput" type="color" value="#4a5768" />
+            <input id="bgColorInput" type="color" value="#f6f4ee" />
           </div>
           <label class="switch-row style-switch-row">
-            <input id="bgGradientToggle" type="checkbox" checked />
+            <input id="bgGradientToggle" type="checkbox" />
             <span>Gradient Background</span>
           </label>
           <div class="field">
             <label>Gradient End Color</label>
-            <input id="bgColor2Input" type="color" value="#161b24" />
+            <input id="bgColor2Input" type="color" value="#e7e2d6" />
           </div>
           <div class="field">
             <label>Canvas Fill Alpha <span id="bgAlphaValue">1.00</span></label>
@@ -354,7 +297,7 @@
             <p>Metal / 3D Material</p>
           </div>
           <label class="switch-row style-switch-row">
-            <input id="fxMetalToggle" type="checkbox" checked />
+            <input id="fxMetalToggle" type="checkbox" />
             <span>Metal Material</span>
           </label>
           <div class="field">
@@ -409,7 +352,7 @@
             <p>Illustration FX</p>
           </div>
           <label class="switch-row style-switch-row">
-            <input id="fxBubbleToggle" type="checkbox" checked />
+            <input id="fxBubbleToggle" type="checkbox" />
             <span>Bubble / Blur</span>
           </label>
           <div class="field">
@@ -430,14 +373,14 @@
           </div>
           <div class="field">
             <label>Pattern Color</label>
-            <input id="fxPatternColorInput" type="color" value="#ffffff" />
+            <input id="fxPatternColorInput" type="color" value="#111111" />
           </div>
           <div class="field">
             <label>Bubble Blur Color</label>
             <input id="fxBubbleColorInput" type="color" value="#ff0000" />
           </div>
           <label class="switch-row style-switch-row">
-            <input id="fxGlassToggle" type="checkbox" checked />
+            <input id="fxGlassToggle" type="checkbox" />
             <span>Glass Polish / Transparency</span>
           </label>
           <div class="field">
@@ -465,6 +408,6 @@
       <div id="logoPlaceholderMarker"></div>
     </main>
 
-    <script src="./app.js?v=metal1"></script>
+    <script src="./app.js?v=fluid1"></script>
   </body>
 </html>
