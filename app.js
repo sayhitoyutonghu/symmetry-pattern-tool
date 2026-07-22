@@ -168,13 +168,20 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+const PERCENT_KEYS = new Set(["textAreaW", "textAreaH", "logoX", "logoY", "logoW", "logoH"]);
+
 function syncInputs() {
   [...sliders, ...numberInputs].forEach((input) => {
     const key = input.dataset.key;
     input.value = state[key];
   });
-  document.getElementById("textAreaWValue").textContent = `${Math.round(state.textAreaW)}%`;
-  document.getElementById("textAreaHValue").textContent = `${Math.round(state.textAreaH)}%`;
+  document.querySelectorAll("[data-val]").forEach((el) => {
+    const key = el.dataset.val;
+    const value = state[key];
+    if (typeof value !== "number") return;
+    if (PERCENT_KEYS.has(key)) el.textContent = `${Math.round(value)}%`;
+    else el.textContent = Number.isInteger(value) ? `${value}` : value.toFixed(2);
+  });
 }
 
 function resizeCanvas() {
@@ -961,16 +968,6 @@ function updateLogoMarker(force = false) {
   }
 }
 
-function setControlPosition(value) {
-  controls.classList.remove("stacked", "along-top", "hideControls");
-  controls.classList.add(value);
-  document.querySelectorAll("input[name='controlsPosition']").forEach((radio) => {
-    const selected = radio.value === value;
-    radio.checked = selected;
-    radio.closest("label").classList.toggle("selected", selected);
-  });
-}
-
 function tryAnchorDownload(url, fileName) {
   const link = document.createElement("a");
   link.download = fileName;
@@ -1145,9 +1142,6 @@ function bindControls() {
     });
   });
 
-  document.querySelectorAll("input[name='controlsPosition']").forEach((radio) => {
-    radio.addEventListener("change", () => setControlPosition(radio.value));
-  });
 
   document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
     radio.addEventListener("change", () => {
@@ -1163,10 +1157,6 @@ function bindControls() {
   });
   document.getElementById("bgColor2Input").addEventListener("input", (event) => {
     state.bgColor2 = event.target.value;
-    draw();
-  });
-  document.getElementById("fxMetalToggle").addEventListener("change", (event) => {
-    state.fxMetal = event.target.checked;
     draw();
   });
   document.getElementById("fxMetalPresetInput").addEventListener("change", (event) => {
@@ -1195,6 +1185,10 @@ function bindControls() {
   });
 
 
+  document.querySelectorAll(".group-head").forEach((head) => {
+    head.addEventListener("click", () => head.parentElement.classList.toggle("open"));
+  });
+
   document.getElementById("generateButton").addEventListener("click", buildPattern);
   document.getElementById("downloadButton").addEventListener("click", downloadPng);
   document.getElementById("startFromBottomToggle").addEventListener("change", (event) => {
@@ -1205,10 +1199,6 @@ function bindControls() {
   document.getElementById("clearBg").addEventListener("click", clearBackgroundImage);
   document.getElementById("logoUpload").addEventListener("change", handleLogoUpload);
   document.getElementById("clearLogo").addEventListener("click", clearLogoImage);
-  document.getElementById("strokeColorInput").addEventListener("input", (event) => {
-    state.strokeColor = event.target.value;
-    draw();
-  });
 
   window.addEventListener("resize", () => {
     updateMarker(true);
@@ -1219,7 +1209,6 @@ function bindControls() {
 document.getElementById("startFromBottomToggle").checked = state.startFromBottom;
 document.getElementById("bgGradientToggle").checked = state.bgGradient;
 document.getElementById("bgColor2Input").value = state.bgColor2;
-document.getElementById("fxMetalToggle").checked = state.fxMetal;
 document.getElementById("fxMetalPresetInput").value = state.fxMetalPreset;
 document.getElementById("fxMetalTintInput").value = state.fxMetalTint;
 document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
