@@ -17,7 +17,6 @@ const state = {
   lineThickness: 14,
   widthVariation: 0.5,
   taperStrength: 0.7,
-  sharpTips: 0.6,
   curveSmoothness: 0.75,
   noOverlapGap: 30,
   mirrorMode: "quad",
@@ -746,13 +745,7 @@ function drawMetalFx() {
   const shininess = 12 + state.fxMetalSpecSharp * 180;
   const specAmt = state.fxMetalSpec;
   const irid = state.fxMetalIridescence;
-  // Glazed ceramic shades its own saturated base colour instead of sampling an
-  // environment ramp: volume shading + edge deepening + a white glaze hotspot.
-  // (Replacing the colour with a ramp is exactly what made a matte "porcelain"
-  // ramp fail — the object must keep its colour, only the light is glaze.)
-  const ceramic = state.fxMetalPreset === "ceramic";
-  const ceramicBase = ceramic ? hexToRgb(state.fxMetalTint) : null;
-  const lut = ceramic ? null : buildMetalLut(state.fxMetalPreset, state.fxMetalTint, state.fxMetalTintAmount);
+  const lut = buildMetalLut(state.fxMetalPreset, state.fxMetalTint, state.fxMetalTintAmount);
 
   const out = ctx.createImageData(w, h);
   const o = out.data;
@@ -771,55 +764,37 @@ function drawMetalFx() {
       const nl = Math.hypot(gx, gy, 1);
       const Nx = -gx / nl, Ny = -gy / nl, Nz = 1 / nl;
 
-      const diff = Math.max(0, Nx * Lx + Ny * Ly + Nz * Lz);
-      const nh = Math.max(0, Nx * Hx + Ny * Hy + Nz * Hz);
-      let r;
-      let g;
-      let b;
+      // Reflection of the straight-on view about the normal.
+      const Ry = 2 * Nz * Ny; // N · V is just Nz for a straight-on view
 
-      if (ceramic) {
-        // Volume: the base colour rolls dark away from the light, and the
-        // glaze deepens it at grazing edges (silhouette rim goes rich/dark).
-        const volume = 0.52 + 0.55 * diff;
-        const rim = 0.62 + 0.38 * Nz;
-        r = ceramicBase.r * volume * rim;
-        g = ceramicBase.g * volume * rim;
-        b = ceramicBase.b * volume * rim;
-        // Two-lobe glaze: a broad satin sheen plus the sharp white hotspot
-        // that reads as fired gloss.
-        const sheen = Math.pow(nh, 7) * 0.42;
-        const spec = Math.pow(nh, shininess) * specAmt * 1.25;
-        const glaze = (sheen + spec) * 255;
-        r += glaze; g += glaze; b += glaze;
-      } else {
-        // Reflection of the straight-on view about the normal.
-        const Ry = 2 * Nz * Ny; // N · V is just Nz for a straight-on view
+      // Environment lookup, indexed by the reflected ray's vertical component.
+      const t = clamp(Ry * 0.5 + 0.5, 0, 1);
+      const idx = Math.round(t * 255) * 3;
+      let r = lut[idx];
+      let g = lut[idx + 1];
+      let b = lut[idx + 2];
 
-        // Environment lookup, indexed by the reflected ray's vertical component.
-        const t = clamp(Ry * 0.5 + 0.5, 0, 1);
-        const idx = Math.round(t * 255) * 3;
-        r = lut[idx]; g = lut[idx + 1]; b = lut[idx + 2];
-
-        if (irid > 0.001) {
-          // Split the ramp lookup per channel so grazing angles fringe into
-          // rainbow, the way a thin film / anodised metal does.
-          const spread = irid * 0.16 * (1 - Nz);
-          const ir = Math.round(clamp(t + spread, 0, 1) * 255) * 3;
-          const ib = Math.round(clamp(t - spread, 0, 1) * 255) * 3;
-          r = r * (1 - irid) + lut[ir] * irid;
-          b = b * (1 - irid) + lut[ib + 2] * irid;
-          g = g * (1 - irid * 0.4) + lut[idx + 1] * irid * 0.4;
-        }
-
-        // Metal is near-pure reflection, so the diffuse term only nudges the
-        // ramp — weighting it any higher turns the material into matte paint.
-        const shade = 0.82 + diff * 0.30;
-        r *= shade; g *= shade; b *= shade;
-
-        // Sharp specular hotspot on top.
-        const spec = Math.pow(nh, shininess) * specAmt * 255;
-        r += spec; g += spec; b += spec;
+      if (irid > 0.001) {
+        // Split the ramp lookup per channel so grazing angles fringe into
+        // rainbow, the way a thin film / anodised metal does.
+        const spread = irid * 0.16 * (1 - Nz);
+        const ir = Math.round(clamp(t + spread, 0, 1) * 255) * 3;
+        const ib = Math.round(clamp(t - spread, 0, 1) * 255) * 3;
+        r = r * (1 - irid) + lut[ir] * irid;
+        b = b * (1 - irid) + lut[ib + 2] * irid;
+        g = g * (1 - irid * 0.4) + lut[idx + 1] * irid * 0.4;
       }
+
+      // Metal is near-pure reflection, so the diffuse term only nudges the
+      // ramp — weighting it any higher turns the material into matte paint.
+      const diff = Math.max(0, Nx * Lx + Ny * Ly + Nz * Lz);
+      const shade = 0.82 + diff * 0.30;
+      r *= shade; g *= shade; b *= shade;
+
+      // Sharp specular hotspot on top.
+      const nh = Math.max(0, Nx * Hx + Ny * Hy + Nz * Hz);
+      const spec = Math.pow(nh, shininess) * specAmt * 255;
+      r += spec; g += spec; b += spec;
 
       // Ambient occlusion in the crevices where strokes cross.
       const ao = 0.78 + 0.22 * height[i];
@@ -1050,18 +1025,11 @@ function bindControls() {
   const MATERIAL_LOOKS = {
     chrome: { fxMetalSpec: 0.85, fxMetalSpecSharp: 0.6, fxMetalIridescence: 0 },
     gold: { fxMetalSpec: 1.0, fxMetalSpecSharp: 0.55, fxMetalIridescence: 0 },
-    ceramic: { fxMetalSpec: 1.05, fxMetalSpecSharp: 0.78, fxMetalIridescence: 0 },
     copper: { fxMetalSpec: 0.9, fxMetalSpecSharp: 0.5, fxMetalIridescence: 0 },
   };
   document.getElementById("fxMetalPresetInput").addEventListener("change", (event) => {
     state.fxMetalPreset = event.target.value;
     Object.assign(state, MATERIAL_LOOKS[state.fxMetalPreset] || {});
-    // Ceramic's colour comes from the tint picker; white glaze on a white
-    // ground is invisible, so seed a colour the first time it's selected.
-    if (state.fxMetalPreset === "ceramic" && state.fxMetalTint.toLowerCase() === "#ffffff") {
-      state.fxMetalTint = "#e0342b";
-      document.getElementById("fxMetalTintInput").value = state.fxMetalTint;
-    }
     syncInputs();
     draw();
   });

@@ -21,6 +21,45 @@
         </div>
       </div>
 
+      <section class="group">
+        <button class="group-head" type="button">
+          <span>Canvas</span>
+          <span class="chev"></span>
+        </button>
+        <div class="group-body">
+          <div class="preset-row" id="canvasPresets">
+            <button data-size="full" class="preset-btn">Full</button>
+            <button data-size="9x16" class="preset-btn">9:16</button>
+            <button data-size="4x5" class="preset-btn">4:5</button>
+            <button data-size="16x9" class="preset-btn">16:9</button>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Width</label><span class="val" data-val="canvasWidth"></span></div>
+            <input data-key="canvasWidth" type="range" min="300" max="4000" step="1" />
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Height</label><span class="val" data-val="canvasHeight"></span></div>
+            <input data-key="canvasHeight" type="range" min="300" max="4000" step="1" />
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Padding</label><span class="val" data-val="canvasPadding"></span></div>
+            <input data-key="canvasPadding" type="range" min="0" max="24" step="0.5" />
+          </div>
+          <div class="field color-field">
+            <div class="field-head"><label>Background</label></div>
+            <input id="bgColorInput" type="color" value="#f6f4ee" />
+          </div>
+          <div class="upload-row">
+            <label class="upload-label">
+              <input id="bgUpload" type="file" accept="image/*" />
+              Upload Image
+            </label>
+            <button id="clearBg" class="btn-tiny" disabled>Clear</button>
+          </div>
+          <div id="bgFileName" class="file-meta">No background image</div>
+        </div>
+      </section>
+
       <section class="group open">
         <button class="group-head" type="button">
           <span>Pattern</span>
@@ -42,10 +81,6 @@
           <div class="field">
             <div class="field-head"><label>Taper</label><span class="val" data-val="taperStrength"></span></div>
             <input data-key="taperStrength" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Sharp Tips</label><span class="val" data-val="sharpTips"></span></div>
-            <input data-key="sharpTips" type="range" min="0" max="1" step="0.01" />
           </div>
           <div class="field">
             <div class="field-head"><label>Smoothness</label><span class="val" data-val="curveSmoothness"></span></div>
@@ -73,7 +108,6 @@
             <select id="fxMetalPresetInput">
               <option value="chrome">Chrome</option>
               <option value="gold">Liquid Gold</option>
-              <option value="ceramic">Glazed Ceramic</option>
               <option value="copper">Copper</option>
             </select>
           </div>
@@ -116,44 +150,6 @@
         </div>
       </section>
 
-      <section class="group">
-        <button class="group-head" type="button">
-          <span>Canvas</span>
-          <span class="chev"></span>
-        </button>
-        <div class="group-body">
-          <div class="preset-row" id="canvasPresets">
-            <button data-size="full" class="preset-btn">Full</button>
-            <button data-size="9x16" class="preset-btn">9:16</button>
-            <button data-size="4x5" class="preset-btn">4:5</button>
-            <button data-size="16x9" class="preset-btn">16:9</button>
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Width</label><span class="val" data-val="canvasWidth"></span></div>
-            <input data-key="canvasWidth" type="range" min="300" max="4000" step="1" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Height</label><span class="val" data-val="canvasHeight"></span></div>
-            <input data-key="canvasHeight" type="range" min="300" max="4000" step="1" />
-          </div>
-          <div class="field">
-            <div class="field-head"><label>Padding</label><span class="val" data-val="canvasPadding"></span></div>
-            <input data-key="canvasPadding" type="range" min="0" max="24" step="0.5" />
-          </div>
-          <div class="field color-field">
-            <div class="field-head"><label>Background</label></div>
-            <input id="bgColorInput" type="color" value="#f6f4ee" />
-          </div>
-          <div class="upload-row">
-            <label class="upload-label">
-              <input id="bgUpload" type="file" accept="image/*" />
-              Upload Image
-            </label>
-            <button id="clearBg" class="btn-tiny" disabled>Clear</button>
-          </div>
-          <div id="bgFileName" class="file-meta">No background image</div>
-        </div>
-      </section>
 
       <section class="group">
         <button class="group-head" type="button">
@@ -201,6 +197,6 @@
       <div id="textAreaMarker"></div>
     </main>
 
-    <script src="./app.js?v=ui5"></script>
+    <script src="./app.js?v=ui6"></script>
   </body>
 </html>
