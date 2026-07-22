@@ -156,67 +156,9 @@
           </div>
         </section>
 
-        <section id="motionControls" class="control-block closed">
-          <div class="control-title always-visible">
-            <p>Motion</p>
-            <label class="switch-row">
-              <input id="animateToggle" type="checkbox" />
-              <span>Replay</span>
-            </label>
-          </div>
-          <div class="inner-radio"><span>Styles</span></div>
-          <div class="field">
-            <label>Replay Hold</label>
-            <input data-key="visibleTime" type="range" min="0.2" max="3" step="0.05" />
-          </div>
-          <div class="field">
-            <label>Animation Speed</label>
-            <input data-key="speed" type="range" min="0.002" max="0.08" step="0.001" />
-          </div>
-        </section>
-
-        <section class="control-block">
-          <div class="control-title">
-            <p>Audio</p>
-            <div class="audio-meter">
-              <span class="audio-icon"></span>
-              <span id="audioLevel">0.00</span>
-            </div>
-          </div>
-          <div class="inner-radio"><span>Input</span></div>
-          <button id="demoAudio" class="play-btn">Demo Audio</button>
-          <label class="upload-label">
-            <input id="audioUpload" type="file" accept="audio/*" />
-            Upload Audio
-          </label>
-          <button id="playUploaded" class="play-btn" disabled>Uploaded Audio</button>
-        </section>
-
         <section class="control-block">
           <div class="control-title">
             <p>Style</p>
-          </div>
-          <div class="color-label-row">
-            <span>Color</span>
-            <span id="selectedColorTag">WHITE OUTLINES</span>
-          </div>
-          <div id="colorControls" class="color-controls">
-            <label class="color-option">
-              <input type="radio" name="colorChoice" value="black" checked />
-              <span class="swatch black"></span>
-            </label>
-            <label class="color-option">
-              <input type="radio" name="colorChoice" value="black outlines" />
-              <span class="swatch outline-black"></span>
-            </label>
-            <label class="color-option">
-              <input type="radio" name="colorChoice" value="white" />
-              <span class="swatch white"></span>
-            </label>
-            <label class="color-option">
-              <input type="radio" name="colorChoice" value="white outlines" />
-              <span class="swatch outline-white"></span>
-            </label>
           </div>
           <div class="field">
             <label>Canvas Fill Color</label>
@@ -231,36 +173,12 @@
             <input id="bgColor2Input" type="color" value="#e7e2d6" />
           </div>
           <div class="field">
-            <label>Canvas Fill Alpha <span id="bgAlphaValue">1.00</span></label>
-            <input id="bgAlphaInput" type="range" min="0" max="1" step="0.01" value="1" />
-          </div>
-          <div class="field">
             <label>Stroke Color</label>
-            <input id="strokeColorInput" type="color" value="#050505" />
-          </div>
-          <div class="field">
-            <label>Stroke Alpha <span id="strokeAlphaValue">1.00</span></label>
-            <input id="strokeAlphaInput" type="range" min="0" max="1" step="0.01" value="1" />
-          </div>
-          <label class="switch-row style-switch-row">
-            <input id="outlineToggle" type="checkbox" />
-            <span>Outline Stroke</span>
-          </label>
-          <div class="field">
-            <label>Outline Color</label>
-            <input id="outlineColorInput" type="color" value="#f8f8f6" />
-          </div>
-          <div class="field">
-            <label>Outline Alpha <span id="outlineAlphaValue">1.00</span></label>
-            <input id="outlineAlphaInput" type="range" min="0" max="1" step="0.01" value="1" />
+            <input id="strokeColorInput" type="color" value="#111111" />
           </div>
           <div class="field">
             <label>Density</label>
             <input data-key="density" type="range" min="0.15" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Straight Lines</label>
-            <input data-key="straightLines" type="range" min="0" max="1" step="0.01" />
           </div>
           <div class="field">
             <label>Node Beads</label>
@@ -269,10 +187,6 @@
           <div class="field">
             <label>Flourishes</label>
             <input data-key="flourishes" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Blank Areas</label>
-            <input data-key="blankAreas" type="range" min="0" max="1" step="0.01" />
           </div>
           <div class="field">
             <label>Line Thickness</label>
@@ -351,52 +265,7 @@
           </div>
         </section>
 
-        <section class="control-block">
-          <div class="control-title">
-            <p>Illustration FX</p>
-          </div>
-          <label class="switch-row style-switch-row">
-            <input id="fxBubbleToggle" type="checkbox" />
-            <span>Bubble / Blur</span>
-          </label>
-          <div class="field">
-            <label>Bubble Strength</label>
-            <input data-key="fxBubbleStrength" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Bubble Blur Density</label>
-            <input data-key="fxBubbleBlurDensity" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Bubble Outline Width</label>
-            <input data-key="fxBubbleOutlinePx" type="range" min="0" max="14" step="0.5" />
-          </div>
-          <div class="field">
-            <label>Bubble Grain (film texture)</label>
-            <input data-key="fxBubbleGrain" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Pattern Color</label>
-            <input id="fxPatternColorInput" type="color" value="#111111" />
-          </div>
-          <div class="field">
-            <label>Bubble Blur Color</label>
-            <input id="fxBubbleColorInput" type="color" value="#ff0000" />
-          </div>
-          <label class="switch-row style-switch-row">
-            <input id="fxGlassToggle" type="checkbox" />
-            <span>Glass Polish / Transparency</span>
-          </label>
-          <div class="field">
-            <label>Glass Opacity</label>
-            <input data-key="fxGlassOpacity" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div class="field">
-            <label>Glass Shine</label>
-            <input data-key="fxGlassShine" type="range" min="0" max="1" step="0.01" />
-          </div>
-        </section>
-
+        
         <section class="control-block actions">
           <div class="main-button">
             <button id="generateButton" class="generate-button">Generate</button>
@@ -412,6 +281,6 @@
       <div id="logoPlaceholderMarker"></div>
     </main>
 
-    <script src="./app.js?v=fluid2"></script>
+    <script src="./app.js?v=clean1"></script>
   </body>
 </html>
