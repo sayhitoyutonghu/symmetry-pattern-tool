@@ -656,10 +656,6 @@ const METAL_RAMPS = {
     [0.0, "#1a0c00"], [0.26, "#7a430a"], [0.44, "#e0a02c"],
     [0.50, "#fffbe8"], [0.57, "#ffcc55"], [0.74, "#8f5410"], [1.0, "#fff3c0"],
   ],
-  porcelain: [
-    [0.0, "#a8bd82"], [0.28, "#d4dcb4"], [0.5, "#f7f3ea"],
-    [0.72, "#f0d3de"], [1.0, "#f3c4d6"],
-  ],
   copper: [
     [0.0, "#2a0f06"], [0.30, "#803a18"], [0.46, "#c9713f"],
     [0.50, "#ffe2cf"], [0.58, "#e08a56"], [0.75, "#8c4526"], [1.0, "#ffd6bb"],
@@ -1024,12 +1020,10 @@ function bindControls() {
     });
   });
 
-  // Each material carries the lighting that makes it read correctly —
-  // porcelain needs soft, fringed light where chrome needs a hard hotspot.
+  // Each material carries the lighting recipe that makes it read correctly.
   const MATERIAL_LOOKS = {
     chrome: { fxMetalSpec: 0.85, fxMetalSpecSharp: 0.6, fxMetalIridescence: 0 },
     gold: { fxMetalSpec: 1.0, fxMetalSpecSharp: 0.55, fxMetalIridescence: 0 },
-    porcelain: { fxMetalSpec: 0.3, fxMetalSpecSharp: 0.2, fxMetalIridescence: 0.45 },
     copper: { fxMetalSpec: 0.9, fxMetalSpecSharp: 0.5, fxMetalIridescence: 0 },
   };
   document.getElementById("fxMetalPresetInput").addEventListener("change", (event) => {
