@@ -652,13 +652,13 @@ const METAL_RAMPS = {
     [0.0, "#0b0f16"], [0.30, "#39424f"], [0.46, "#8e9aa9"],
     [0.50, "#ffffff"], [0.56, "#cfd7e0"], [0.72, "#6f7885"], [1.0, "#e9eff6"],
   ],
-  silver: [
-    [0.0, "#232a33"], [0.32, "#5c6673"], [0.47, "#aab4c0"],
-    [0.50, "#ffffff"], [0.57, "#dde3ea"], [0.74, "#8d97a3"], [1.0, "#f2f6fa"],
-  ],
   gold: [
     [0.0, "#1a0c00"], [0.26, "#7a430a"], [0.44, "#e0a02c"],
     [0.50, "#fffbe8"], [0.57, "#ffcc55"], [0.74, "#8f5410"], [1.0, "#fff3c0"],
+  ],
+  porcelain: [
+    [0.0, "#a8bd82"], [0.28, "#d4dcb4"], [0.5, "#f7f3ea"],
+    [0.72, "#f0d3de"], [1.0, "#f3c4d6"],
   ],
   copper: [
     [0.0, "#2a0f06"], [0.30, "#803a18"], [0.46, "#c9713f"],
@@ -891,7 +891,8 @@ function tryAnchorDownload(url, fileName) {
 }
 
 function downloadPng() {
-  const fileName = `eternal-pattern-${Date.now()}.png`;
+  const stamp = new Date().toISOString().slice(0, 19).replace("T", "-").replaceAll(":", "");
+  const fileName = `symmetry-pattern-${state.fxMetalPreset}-${stamp}.png`;
   const failMessage = "Download is blocked in this browser tab. A preview will open; right-click the image to save.";
   const fileProtocolMode = window.location.protocol === "file:";
 
@@ -1023,8 +1024,22 @@ function bindControls() {
     });
   });
 
+  // Each material carries the lighting that makes it read correctly —
+  // porcelain needs soft, fringed light where chrome needs a hard hotspot.
+  const MATERIAL_LOOKS = {
+    chrome: { fxMetalSpec: 0.85, fxMetalSpecSharp: 0.6, fxMetalIridescence: 0 },
+    gold: { fxMetalSpec: 1.0, fxMetalSpecSharp: 0.55, fxMetalIridescence: 0 },
+    porcelain: { fxMetalSpec: 0.3, fxMetalSpecSharp: 0.2, fxMetalIridescence: 0.45 },
+    copper: { fxMetalSpec: 0.9, fxMetalSpecSharp: 0.5, fxMetalIridescence: 0 },
+  };
   document.getElementById("fxMetalPresetInput").addEventListener("change", (event) => {
     state.fxMetalPreset = event.target.value;
+    Object.assign(state, MATERIAL_LOOKS[state.fxMetalPreset] || {});
+    syncInputs();
+    draw();
+  });
+  document.getElementById("bgColorInput").addEventListener("input", (event) => {
+    state.bgColor = event.target.value;
     draw();
   });
   document.getElementById("fxMetalTintInput").addEventListener("input", (event) => {
@@ -1068,6 +1083,7 @@ function bindControls() {
 }
 
 document.getElementById("startFromBottomToggle").checked = state.startFromBottom;
+document.getElementById("bgColorInput").value = state.bgColor;
 document.getElementById("fxMetalPresetInput").value = state.fxMetalPreset;
 document.getElementById("fxMetalTintInput").value = state.fxMetalTint;
 document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
