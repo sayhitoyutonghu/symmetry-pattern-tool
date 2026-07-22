@@ -29,16 +29,17 @@
         <div class="group-body">
           <div class="preset-row" id="canvasPresets">
             <button data-size="full" class="preset-btn">Full</button>
+            <button data-size="1x1" class="preset-btn">1:1</button>
             <button data-size="9x16" class="preset-btn">9:16</button>
             <button data-size="4x5" class="preset-btn">4:5</button>
             <button data-size="16x9" class="preset-btn">16:9</button>
           </div>
           <div class="field">
-            <div class="field-head"><label>Width</label><span class="val" data-val="canvasWidth"></span></div>
+            <div class="field-head"><label>Width</label><input data-key="canvasWidth" class="num-input" type="number" min="300" max="4000" step="1" /></div>
             <input data-key="canvasWidth" type="range" min="300" max="4000" step="1" />
           </div>
           <div class="field">
-            <div class="field-head"><label>Height</label><span class="val" data-val="canvasHeight"></span></div>
+            <div class="field-head"><label>Height</label><input data-key="canvasHeight" class="num-input" type="number" min="300" max="4000" step="1" /></div>
             <input data-key="canvasHeight" type="range" min="300" max="4000" step="1" />
           </div>
           <div class="field">
@@ -197,6 +198,6 @@
       <div id="textAreaMarker"></div>
     </main>
 
-    <script src="./app.js?v=ui6"></script>
+    <script src="./app.js?v=ui7"></script>
   </body>
 </html>

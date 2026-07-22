@@ -419,3 +419,28 @@ input[type="color"]::-webkit-color-swatch {
     height: auto;
   }
 }
+
+.num-input {
+  font-family: "Geist Mono", monospace;
+  font-size: 10.5px;
+  width: 58px;
+  padding: 3px 6px;
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.num-input::-webkit-outer-spin-button,
+.num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.num-input:focus {
+  outline: none;
+  border-color: var(--ink-faint);
+}

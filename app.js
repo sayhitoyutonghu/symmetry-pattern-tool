@@ -1048,6 +1048,7 @@ function bindControls() {
     const size = button.dataset.size;
     const presets = {
       full: [window.innerWidth * 2, window.innerHeight * 2],
+      "1x1": [1400, 1400],
       "9x16": [1080, 1920],
       "4x5": [1080, 1350],
       "16x9": [1920, 1080],
