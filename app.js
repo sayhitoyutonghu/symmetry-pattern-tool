@@ -21,7 +21,7 @@ const state = {
   straightLines: 0.2,
   flourishes: 0.42,
   blankAreas: 0.08,
-  lineThickness: 8,
+  lineThickness: 30,
   widthVariation: 0.42,
   taperStrength: 0.58,
   sharpTips: 0.7,
@@ -30,41 +30,48 @@ const state = {
   circleGuideInfluence: 0.68,
   circleMinRadius: 2.4,
   circleMaxRadius: 9.5,
-  noOverlapGap: 18,
+  noOverlapGap: 26,
   mirrorMode: "quad",
   startFromBottom: true,
   useCircleScaffold: true,
   showGuides: false,
-  textSeedValue: "symmetry",
-  subtitleValue: "",
-  useTextSeed: true,
-  showTextReference: false,
-  textAsStroke: true,
-  textColor: "#ffffff",
-  scriptStrokeInfluence: 0.78,
   crayonEffect: false,
   crayonStrength: 0.45,
-  fxWaxTexture: true,
+  fxWaxTexture: false,
   fxWaxStrength: 0.52,
-  fxEdgeLightShadow: true,
+  fxEdgeLightShadow: false,
   fxEdgeStrength: 0.48,
-  fxBubbleBlur: true,
+  fxBubbleBlur: false,
   fxBubbleStrength: 0.04,
   fxBubbleBlurDensity: 1,
   fxBubbleOutlinePx: 1,
   fxBubbleGrain: 0,
   fxBubbleGlowColor: "#ff0000",
-  fxGlassPolish: true,
+  fxGlassPolish: false,
   fxGlassOpacity: 0.42,
   fxGlassShine: 0.58,
   fxEmbossDepth: false,
   fxEmbossStrength: 0.34,
   fxHalftoneNoise: false,
   fxHalftoneMix: 0.38,
+  // --- Metal / 3D material ---
+  fxMetal: true,
+  fxMetalPreset: "chrome",
+  fxMetalRelief: 0.55,
+  fxMetalLightAngle: 135,
+  fxMetalSpec: 0.85,
+  fxMetalSpecSharp: 0.6,
+  fxMetalIridescence: 0,
+  fxMetalTint: "#ffffff",
+  fxMetalTintAmount: 0,
+  fxMetalShadow: 0.45,
+  fxMetalQuality: 0.5,
   visibleTime: 1.3,
   speed: 0.012,
   colorChoice: "white outlines",
-  bgColor: "#111111",
+  bgColor: "#4a5768",
+  bgColor2: "#161b24",
+  bgGradient: true,
   bgAlpha: 1,
   strokeColor: "#ffffff",
   strokeAlpha: 1,
@@ -160,67 +167,6 @@ function stableNoise(value) {
   return raw - Math.floor(raw);
 }
 
-function hashTextToSeed(text) {
-  let hash = 2166136261;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function textSeedFactors(rawText) {
-  const text = rawText.trim().toLowerCase();
-  if (!text) {
-    return {
-      active: false,
-      label: "Text seed inactive",
-      seed: Date.now() >>> 0,
-      density: 0,
-      straight: 0,
-      flourishes: 0,
-      smoothness: 0,
-      guideDensity: 0,
-      guideInfluence: 0,
-    };
-  }
-
-  const seed = hashTextToSeed(text);
-  const len = text.length;
-  const uniqueCount = new Set(text).size;
-  const vowelCount = (text.match(/[aeiou]/g) || []).length;
-  const uniqueRatio = uniqueCount / Math.max(1, len);
-  const vowelRatio = vowelCount / Math.max(1, len);
-
-  const byte0 = seed & 255;
-  const byte1 = (seed >>> 8) & 255;
-  const byte2 = (seed >>> 16) & 255;
-  const byte3 = (seed >>> 24) & 255;
-  const centered = (b) => b / 255 - 0.5;
-
-  return {
-    active: true,
-    label: `Seed #${seed.toString(16).padStart(8, "0")}`,
-    seed,
-    density: centered(byte0) * 0.22 + Math.min(12, len) * 0.005,
-    straight: centered(byte1) * 0.16,
-    flourishes: centered(byte2) * 0.2 + uniqueRatio * 0.06,
-    smoothness: centered(byte3) * 0.12 + vowelRatio * 0.08,
-    guideDensity: centered((byte0 + byte2) & 255) * 0.16 + uniqueRatio * 0.08,
-    guideInfluence: centered((byte1 + byte3) & 255) * 0.2 + vowelRatio * 0.1,
-  };
-}
-
-function updateTextSeedMeta(text) {
-  const meta = document.getElementById("textSeedMeta");
-  if (!state.useTextSeed || !text.trim()) {
-    meta.textContent = "Text seed inactive";
-    return;
-  }
-  const factors = textSeedFactors(text);
-  meta.textContent = factors.label;
-}
-
 function isAudioPlaying() {
   return demoPlaying || Boolean(audioElement && !audioElement.paused);
 }
@@ -297,7 +243,12 @@ function applyColorPreset(modeKey) {
   state.outlineStroke = preset.outline;
   state.outlineColor = preset.bg;
   state.outlineAlpha = preset.bgAlpha;
+  syncColorInputs();
+}
 
+// DOM half of applyColorPreset. Called on its own at boot so the inputs reflect
+// the default state without a preset overwriting the state's own colours.
+function syncColorInputs() {
   document.getElementById("bgColorInput").value = state.bgColor;
   document.getElementById("bgAlphaInput").value = state.bgAlpha;
   document.getElementById("strokeColorInput").value = state.strokeColor;
@@ -875,287 +826,6 @@ function createCurlPath(signX, signY, options = {}) {
   };
 }
 
-function getActiveTextGlyphs() {
-  const text = state.useTextSeed ? state.textSeedValue.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
-  return text ? Array.from(text) : ["u", "n", "t", "r", "a", "s", "l", "g", "y"];
-}
-
-function glyphStrokeFamily(glyph) {
-  if ("ygjpq9".includes(glyph)) return "descender";
-  if ("bdfhklt".includes(glyph)) return "ascender";
-  if ("aceog068".includes(glyph)) return "round";
-  if ("mnruw".includes(glyph)) return "hump";
-  if ("svxz25".includes(glyph)) return "sweep";
-  return "connector";
-}
-
-function cubicPoint(p0, c1, c2, p1, t) {
-  const mt = 1 - t;
-  return {
-    x: mt ** 3 * p0.x + 3 * mt ** 2 * t * c1.x + 3 * mt * t ** 2 * c2.x + t ** 3 * p1.x,
-    y: mt ** 3 * p0.y + 3 * mt ** 2 * t * c1.y + 3 * mt * t ** 2 * c2.y + t ** 3 * p1.y,
-  };
-}
-
-function appendCubicLocal(points, p0, c1, c2, p1, steps = 16) {
-  if (!points.length) points.push({ ...p0 });
-  for (let i = 1; i <= steps; i += 1) {
-    points.push(cubicPoint(p0, c1, c2, p1, i / steps));
-  }
-}
-
-function appendArcLocal(points, cx, cy, rx, ry, startAngle, endAngle, steps = 28) {
-  for (let i = 0; i <= steps; i += 1) {
-    if (points.length && i === 0) continue;
-    const t = i / steps;
-    const a = startAngle + (endAngle - startAngle) * t;
-    points.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
-  }
-}
-
-function localBounds(points) {
-  return points.reduce((bounds, p) => ({
-    minX: Math.min(bounds.minX, p.x),
-    maxX: Math.max(bounds.maxX, p.x),
-    minY: Math.min(bounds.minY, p.y),
-    maxY: Math.max(bounds.maxY, p.y),
-  }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
-}
-
-function createScriptLocalStroke(glyph) {
-  const points = [];
-  const family = glyphStrokeFamily(glyph);
-
-  if (family === "descender") {
-    appendCubicLocal(points, { x: 0.02, y: 0.08 }, { x: 0.12, y: -0.18 }, { x: 0.42, y: -0.24 }, { x: 0.56, y: -0.03 }, 14);
-    appendArcLocal(points, 0.38, 0.02, 0.23, 0.26, -0.18 * Math.PI, 1.72 * Math.PI, 34);
-    const last = points[points.length - 1];
-    appendCubicLocal(points, last, { x: 0.72, y: 0.18 }, { x: 0.62, y: 0.66 }, { x: 0.44, y: 0.78 }, 18);
-    appendArcLocal(points, 0.51, 0.78, 0.18, 0.17, 0.95 * Math.PI, -0.95 * Math.PI, 26);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.66, y: 1.02 }, { x: 0.86, y: 0.63 }, { x: 1.02, y: 0.5 }, 14);
-  } else if (family === "ascender") {
-    appendCubicLocal(points, { x: 0.06, y: 0.42 }, { x: 0.02, y: -0.5 }, { x: 0.48, y: -0.72 }, { x: 0.54, y: -0.28 }, 20);
-    appendArcLocal(points, 0.42, -0.35, 0.17, 0.32, -0.18 * Math.PI, 1.35 * Math.PI, 28);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.48, y: 0.15 }, { x: 0.58, y: 0.58 }, { x: 0.24, y: 0.72 }, 18);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.46, y: 0.56 }, { x: 0.74, y: 0.48 }, { x: 0.98, y: 0.26 }, 12);
-  } else if (family === "round") {
-    appendCubicLocal(points, { x: 0.0, y: 0.08 }, { x: 0.18, y: -0.18 }, { x: 0.58, y: -0.22 }, { x: 0.72, y: 0.04 }, 12);
-    appendArcLocal(points, 0.45, 0.08, 0.28, 0.32, -0.08 * Math.PI, 1.86 * Math.PI, 42);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.68, y: 0.42 }, { x: 0.88, y: 0.32 }, { x: 1.0, y: 0.12 }, 12);
-  } else if (family === "hump") {
-    appendCubicLocal(points, { x: 0.0, y: 0.26 }, { x: 0.16, y: -0.08 }, { x: 0.28, y: -0.18 }, { x: 0.4, y: 0.16 }, 14);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.5, y: 0.44 }, { x: 0.68, y: -0.18 }, { x: 0.82, y: 0.12 }, 16);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.9, y: 0.36 }, { x: 1.04, y: 0.26 }, { x: 1.12, y: 0.02 }, 10);
-  } else if (family === "sweep") {
-    appendCubicLocal(points, { x: 0.02, y: -0.08 }, { x: 0.28, y: -0.38 }, { x: 0.74, y: -0.22 }, { x: 0.64, y: 0.1 }, 18);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.56, y: 0.42 }, { x: 0.18, y: 0.26 }, { x: 0.24, y: 0.58 }, 16);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.32, y: 0.82 }, { x: 0.72, y: 0.72 }, { x: 1.02, y: 0.42 }, 14);
-  } else {
-    appendCubicLocal(points, { x: 0.0, y: 0.1 }, { x: 0.16, y: -0.12 }, { x: 0.34, y: 0.28 }, { x: 0.5, y: 0.04 }, 14);
-    appendArcLocal(points, 0.58, 0.1, 0.16, 0.22, Math.PI, 2.45 * Math.PI, 24);
-    appendCubicLocal(points, points[points.length - 1], { x: 0.72, y: -0.04 }, { x: 0.9, y: 0.18 }, { x: 1.04, y: 0.0 }, 12);
-  }
-
-  return points;
-}
-
-function glyphReadableWidth(glyph) {
-  const family = glyphStrokeFamily(glyph);
-  if ("ilt1".includes(glyph)) return 0.58;
-  if ("mw".includes(glyph)) return 1.22;
-  if (family === "descender") return 1.02;
-  if (family === "ascender") return 0.92;
-  if (family === "hump") return 1.1;
-  return 0.96;
-}
-
-function createScriptWordLocalStroke(glyphs) {
-  const points = [];
-  let cursor = 0;
-
-  glyphs.forEach((glyph, index) => {
-    const local = createScriptLocalStroke(glyph);
-    if (local.length < 3) return;
-
-    const bounds = localBounds(local);
-    const localW = Math.max(0.001, bounds.maxX - bounds.minX);
-    const targetW = glyphReadableWidth(glyph);
-    const family = glyphStrokeFamily(glyph);
-    const baselineShift = family === "descender" ? 0.06 : family === "ascender" ? -0.04 : 0;
-    const shaped = local.map((point) => ({
-      x: cursor + ((point.x - bounds.minX) / localW) * targetW,
-      y: point.y + baselineShift,
-    }));
-
-    if (points.length && shaped.length) {
-      const last = points[points.length - 1];
-      const first = shaped[0];
-      appendCubicLocal(
-        points,
-        last,
-        { x: last.x + targetW * 0.18, y: last.y - 0.05 },
-        { x: first.x - targetW * 0.2, y: first.y + 0.04 },
-        first,
-        8,
-      );
-      points.push(...shaped.slice(1));
-    } else {
-      points.push(...shaped);
-    }
-
-    const overlap = index < glyphs.length - 1 ? rand(0.68, 0.82) : 1;
-    cursor += targetW * overlap;
-  });
-
-  return points;
-}
-
-function chooseScriptGlyphSequence(glyphs, zone, forceReadable, influence) {
-  if (!glyphs.length) return ["u"];
-  if (forceReadable && glyphs.length > 1) return glyphs.slice(0, Math.min(glyphs.length, 14));
-
-  const canWriteWord = glyphs.length > 2 && (zone === "bottom" || zone === "top");
-  if (canWriteWord && chance(0.34 + influence * 0.42)) {
-    const maxLen = Math.min(glyphs.length, 7);
-    const len = Math.floor(rand(3, maxLen + 1));
-    const start = Math.floor(rand(0, Math.max(1, glyphs.length - len + 1)));
-    return glyphs.slice(start, start + len);
-  }
-
-  return [glyphs[Math.floor(rand(0, glyphs.length))]];
-}
-
-function createCalligraphicStrokePath(signX, signY, options = {}) {
-  if (!state.useTextSeed || !state.textSeedValue.trim()) return null;
-  const influence = clamp(state.scriptStrokeInfluence, 0, 1);
-  if (influence < 0.03) return null;
-
-  const glyphs = getActiveTextGlyphs();
-  const minSide = Math.min(state.canvasWidth, state.canvasHeight);
-  const margin = getPatternSafeMarginPx();
-  const rect = getTextRect(minSide * 0.055);
-  const safeTop = margin;
-  const safeBottom = state.canvasHeight - margin;
-  const sideInner = signX < 0 ? rect.x - minSide * 0.045 : rect.x + rect.w + minSide * 0.045;
-  const sideOuter = signX < 0 ? margin : state.canvasWidth - margin;
-  const availableSide = Math.max(minSide * 0.12, Math.abs(sideInner - sideOuter));
-  const zoneRoll = rand();
-  const forceReadable = Boolean(options.forceReadable);
-  const zone = forceReadable
-    ? (options.forceZone || (state.startFromBottom ? "bottom" : "top"))
-    : state.startFromBottom
-    ? (zoneRoll < 0.42 ? "bottom" : zoneRoll < 0.86 ? "side" : "top")
-    : (zoneRoll < 0.52 ? "side" : zoneRoll < 0.78 ? "top" : "bottom");
-  const sequence = chooseScriptGlyphSequence(glyphs, zone, forceReadable, influence);
-  const isWord = sequence.length > 1;
-  const local = isWord ? createScriptWordLocalStroke(sequence) : createScriptLocalStroke(sequence[0]);
-  if (local.length < 8) return null;
-
-  const family = glyphStrokeFamily(sequence[0]);
-  const containsAscender = sequence.some((glyph) => glyphStrokeFamily(glyph) === "ascender");
-  const containsDescender = sequence.some((glyph) => glyphStrokeFamily(glyph) === "descender");
-  const size = rand(minSide * 0.12, minSide * (0.18 + influence * 0.1));
-  let drawW = size * rand(0.82, family === "hump" ? 1.52 : 1.28);
-  let drawH = size * rand(family === "ascender" || family === "descender" ? 1.15 : 0.72, 1.72);
-
-  if (isWord) {
-    const readableWidth = forceReadable
-      ? Math.min(state.canvasWidth - margin * 2.4, minSide * (0.44 + sequence.length * 0.035))
-      : minSide * rand(0.24 + sequence.length * 0.028, 0.34 + sequence.length * 0.042);
-    drawW = readableWidth;
-    drawH = minSide * rand(
-      containsAscender || containsDescender ? 0.12 : 0.095,
-      containsAscender || containsDescender ? 0.19 : 0.15,
-    );
-  }
-
-  let anchorX;
-  let anchorY;
-  let angle;
-
-  if (forceReadable && (zone === "bottom" || zone === "top")) {
-    anchorX = state.canvasWidth / 2 + rand(-minSide * 0.035, minSide * 0.035);
-    anchorY = zone === "bottom"
-      ? rand(safeBottom - drawH * 0.9, safeBottom - drawH * 0.42)
-      : rand(safeTop + drawH * 0.42, safeTop + drawH * 0.9);
-    angle = rand(-0.055, 0.055);
-  } else if (zone === "bottom") {
-    const minX = signX < 0
-      ? margin + drawW * 0.35
-      : Math.max(sideInner, margin + drawW * 0.35);
-    const maxX = signX < 0
-      ? Math.min(sideInner, state.canvasWidth - margin - drawW * 0.35)
-      : state.canvasWidth - margin - drawW * 0.35;
-    anchorX = rand(Math.min(minX, maxX), Math.max(minX, maxX));
-    anchorY = rand(safeBottom - minSide * 0.16, safeBottom - drawH * 0.15);
-    angle = (signX < 0 ? 0 : Math.PI) + rand(-0.18, 0.18);
-  } else if (zone === "top") {
-    const minX = signX < 0
-      ? margin + drawW * 0.35
-      : Math.max(sideInner, margin + drawW * 0.35);
-    const maxX = signX < 0
-      ? Math.min(sideInner, state.canvasWidth - margin - drawW * 0.35)
-      : state.canvasWidth - margin - drawW * 0.35;
-    anchorX = rand(Math.min(minX, maxX), Math.max(minX, maxX));
-    anchorY = rand(safeTop + drawH * 0.2, safeTop + minSide * 0.14);
-    angle = (signX < 0 ? 0 : Math.PI) + rand(-0.12, 0.12);
-  } else {
-    const sideWidth = Math.min(availableSide, minSide * 0.2);
-    anchorX = signX < 0
-      ? rand(margin + drawH * 0.25, margin + sideWidth)
-      : rand(state.canvasWidth - margin - sideWidth, state.canvasWidth - margin - drawH * 0.25);
-    anchorY = rand(safeTop + drawW * 0.32, safeBottom - drawW * 0.32);
-    angle = (signX < 0 ? -Math.PI / 2 : Math.PI / 2) + rand(-0.22, 0.22);
-  }
-
-  const bounds = localBounds(local);
-  const localW = Math.max(0.001, bounds.maxX - bounds.minX);
-  const localH = Math.max(0.001, bounds.maxY - bounds.minY);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const slant = rand(-0.14, 0.24) + (family === "descender" ? 0.08 : 0);
-  const smoothness = clamp(options.curveSmoothness ?? state.curveSmoothness, 0, 1);
-  const pad = minSide * 0.014;
-  let blockedCount = 0;
-
-  const transformed = local.map((point, index) => {
-    let lx = ((point.x - bounds.minX) / localW - 0.5) * drawW;
-    const ly = ((point.y - bounds.minY) / localH - 0.5) * drawH;
-    lx += ly * slant;
-    const jitter = (1 - smoothness) * minSide * 0.004;
-    const jx = (stableNoise(index * 1.77 + state.seed * 0.00011) - 0.5) * jitter;
-    const jy = (stableNoise(index * 2.13 + state.seed * 0.00017) - 0.5) * jitter;
-    const next = {
-      x: anchorX + lx * cos - ly * sin + jx,
-      y: anchorY + lx * sin + ly * cos + jy,
-    };
-    next.x = clamp(next.x, margin, state.canvasWidth - margin);
-    next.y = clamp(next.y, margin, state.canvasHeight - margin);
-    if (pointBlocked(next.x, next.y, pad)) {
-      blockedCount += 1;
-      pushAwayFromCenter(next, minSide * (0.035 + influence * 0.035));
-      next.x = clamp(next.x, margin, state.canvasWidth - margin);
-      next.y = clamp(next.y, margin, state.canvasHeight - margin);
-    }
-    return next;
-  });
-
-  if (blockedCount > transformed.length * 0.48) return null;
-  const smoothed = smoothPolyline(transformed, Math.round(2 + smoothness * 4), 0.52 + smoothness * 0.32);
-  const points = simplifyBlockedSegments(smoothed);
-  if (points.length < 9) return null;
-
-  return {
-    type: "script",
-    glyph: sequence.join(""),
-    noMirror: forceReadable,
-    points,
-    width: rand(0.62, 1.12) * state.lineThickness * (0.82 + influence * 0.28),
-    phase: rand(0, Math.PI * 2),
-    branches: [],
-  };
-}
-
 function smoothPolyline(points, passes = 2, pull = 0.75) {
   if (points.length < 3) return points;
   let current = points.map((p) => ({ ...p }));
@@ -1310,397 +980,8 @@ function addPointsToMap(points, cellMap, cellSize) {
 // This produces a single flowing calligraphic ribbon of letter shapes that
 // wraps continuously around all four frame edges.
 
-// When there's no subtitle the frame is a single unified ornament, so it's
-// rendered as one quadrant mirrored into all four corners (full four-fold
-// symmetry). A subtitle pins distinct text to the bottom edge, which breaks
-// that symmetry, so it falls back to the half-mirror layout.
-function frameIsQuadSymmetric() {
-  if ((state.subtitleValue || "").trim()) return false;
-  return state.mirrorMode === "horizontal" || state.mirrorMode === "vertical";
-}
-
-// Shared geometry for the text-on-a-path frame. Both the pattern generator and
-// the reference overlay use this so they are guaranteed to stay aligned.
-function getFrameWarpConfig() {
-  const text = state.textSeedValue.trim();
-  if (!text) return null;
-  const rawChars = [...text].filter((c) => c.trim()).join("");
-  if (!rawChars) return null;
-
-  const W = state.canvasWidth;
-  const H = state.canvasHeight;
-  const minSide = Math.min(W, H);
-
-  // Frame band: the ribbon around the canvas edges within which letters live.
-  const bandDepth = minSide * 0.21;                   // radial thickness (bigger frame)
-  // Centreline kept close to the edge so the letter ink reaches near the border.
-  // Pattern Padding pushes it inward when you want more breathing room.
-  const frameCx = minSide * 0.02 + getPatternSafeMarginPx() + bandDepth * 0.31; // centreline inset
-  const fontSize = clamp(bandDepth * 0.90, 52, minSide * 0.24);
-
-  const subtitleRaw = (state.subtitleValue || "").trim();
-  const subChars = subtitleRaw;
-
-  const offH = Math.ceil(bandDepth * 1.25);
-
-  // Perimeter as a polyline of waypoints; interior corners become rounded
-  // quarter-arcs so the text ribbon flows continuously around them instead of
-  // being chopped where two straight edges meet at 90°. `flip` re-orients a
-  // segment's letters so they read upright on edges that would otherwise invert.
-  const fc = frameCx;
-  let waypoints, edgeFlip, closed;
-  // No per-edge flip: letters keep "tops outward" all the way around, so the
-  // ribbon rotates continuously through every corner with no reflection seam.
-  // (The bottom decorative swirls read upside-down, which is fine for abstract
-  // calligraphy; the readable subtitle gets its own upright flip below.)
-  if (frameIsQuadSymmetric()) {
-    // No subtitle → the frame is one unified ornament with full four-fold
-    // symmetry. Render only the top-left quarter (half of the top edge + half of
-    // the left edge, meeting at the TL corner); compositeMirrored reflects it
-    // into all four quadrants so every side mirrors the others.
-    waypoints = [ {x:W/2,y:fc}, {x:fc,y:fc}, {x:fc,y:H/2} ];
-    edgeFlip  = [ false, false ];
-    closed = false;
-  } else if (state.mirrorMode === "horizontal") {
-    waypoints = [ {x:W/2,y:fc}, {x:fc,y:fc}, {x:fc,y:H-fc}, {x:W/2,y:H-fc} ]; // top→left→bottom
-    edgeFlip  = [ false, false, false ];
-    closed = false;
-  } else if (state.mirrorMode === "vertical") {
-    waypoints = [ {x:fc,y:H/2}, {x:fc,y:fc}, {x:W-fc,y:fc}, {x:W-fc,y:H/2} ]; // left→top→right
-    edgeFlip  = [ false, false, false ];
-    closed = false;
-  } else {
-    waypoints = [ {x:fc,y:fc}, {x:W-fc,y:fc}, {x:W-fc,y:H-fc}, {x:fc,y:H-fc} ]; // CW loop
-    edgeFlip  = [ false, false, false, false ];
-    closed = true;
-  }
-
-  const edgeN = closed ? waypoints.length : waypoints.length - 1;
-  const cornerR = 0; // square (sharp) frame corners
-
-  // Build line + arc segments with rounded corners.
-  const segs = [];
-  const edges = [];
-  for (let i = 0; i < edgeN; i++) {
-    const a = waypoints[i], b = waypoints[(i + 1) % waypoints.length];
-    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const tx = (b.x - a.x) / L, ty = (b.y - a.y) / L;
-    let nx = -ty, ny = tx; // inward normal (toward canvas centre)
-    if (nx * (W / 2 - a.x) + ny * (H / 2 - a.y) < 0) { nx = -nx; ny = -ny; }
-    edges.push({ a, b, tx, ty, nx, ny, flip: edgeFlip[i] });
-  }
-  for (let i = 0; i < edges.length; i++) {
-    const e = edges[i];
-    const startCorner = closed || i > 0;
-    const endCorner = closed || i < edges.length - 1;
-    let x0 = e.a.x, y0 = e.a.y, x1 = e.b.x, y1 = e.b.y;
-    if (startCorner) { x0 += e.tx * cornerR; y0 += e.ty * cornerR; }
-    if (endCorner)   { x1 -= e.tx * cornerR; y1 -= e.ty * cornerR; }
-    segs.push({ type: "line", x0, y0, x1, y1, nx: e.nx, ny: e.ny, flip: e.flip });
-    if (endCorner) {
-      const next = edges[(i + 1) % edges.length];
-      const V = e.b;
-      const A = { x: V.x - e.tx * cornerR, y: V.y - e.ty * cornerR }; // arc start
-      const C = { x: A.x + e.nx * cornerR, y: A.y + e.ny * cornerR }; // arc centre
-      const Bp = { x: V.x + next.tx * cornerR, y: V.y + next.ty * cornerR }; // arc end
-      const a0 = Math.atan2(A.y - C.y, A.x - C.x);
-      let dA = Math.atan2(Bp.y - C.y, Bp.x - C.x) - a0;
-      while (dA > Math.PI) dA -= 2 * Math.PI;
-      while (dA < -Math.PI) dA += 2 * Math.PI;
-      segs.push({ type: "arc", cx: C.x, cy: C.y, R: cornerR, a0, a1: a0 + dA, flip: e.flip });
-    }
-  }
-
-  const segLens = segs.map((s) =>
-    s.type === "arc" ? s.R * Math.abs(s.a1 - s.a0) : Math.hypot(s.x1 - s.x0, s.y1 - s.y0));
-  const cumLens = segLens.reduce((acc, l) => { acc.push((acc[acc.length - 1] || 0) + l); return acc; }, []);
-  const totalLen = cumLens[cumLens.length - 1];
-
-  // Sample the centreline at arc-distance `d` → world position, unit tangent,
-  // and inward normal (works for both straight and arc segments).
-  function sampleAt(d) {
-    d = clamp(d, 0, totalLen * 0.9999);
-    let si = 0;
-    while (si < segs.length - 1 && cumLens[si] < d) si++;
-    const seg = segs[si];
-    const segStart = si > 0 ? cumLens[si - 1] : 0;
-    const t = segLens[si] > 0 ? (d - segStart) / segLens[si] : 0;
-    if (seg.type === "arc") {
-      const a = seg.a0 + (seg.a1 - seg.a0) * t;
-      const ca = Math.cos(a), sa = Math.sin(a);
-      const dir = seg.a1 >= seg.a0 ? 1 : -1;
-      return { x: seg.cx + seg.R * ca, y: seg.cy + seg.R * sa,
-        nx: -ca, ny: -sa, tx: -sa * dir, ty: ca * dir, flip: seg.flip };
-    }
-    const L = Math.hypot(seg.x1 - seg.x0, seg.y1 - seg.y0) || 1;
-    return { x: seg.x0 + (seg.x1 - seg.x0) * t, y: seg.y0 + (seg.y1 - seg.y0) * t,
-      nx: seg.nx, ny: seg.ny, tx: (seg.x1 - seg.x0) / L, ty: (seg.y1 - seg.y0) / L, flip: seg.flip };
-  }
-
-  function perimToWorld(d, r) {
-    const s = sampleAt(d);
-    const sgn = s.flip ? -1 : 1;
-    return { x: s.x + s.nx * sgn * r, y: s.y + s.ny * sgn * r };
-  }
-
-  const offW = Math.ceil(totalLen);
-  // Measure the real glyph width in the decorative font (variable-width cursive)
-  // so the repeated text reliably OVERFILLS the perimeter. Estimating from
-  // fontSize underfills with narrow scripts, leaving a blank patch at the strip's
-  // end that surfaces as a gap/notch where the mirrored halves meet.
-  const _measCanvas = document.createElement("canvas").getContext("2d");
-  _measCanvas.font = `${fontSize}px ${_patternFontFamily}`;
-  const _unitW = Math.max(1, _measCanvas.measureText(rawChars + " ").width);
-  const repeats = Math.max(1, Math.ceil((totalLen * 1.15) / _unitW));
-  const displayText = (rawChars + " ").repeat(repeats).trimEnd();
-
-  // Render the repeated text into a horizontal strip the width of the perimeter.
-  // The title fills the whole frame; an optional subtitle replaces the BOTTOM edge
-  // so the top/sides + bottom together compose the complete frame.
-  function renderStrip() {
-    const off = document.createElement("canvas");
-    off.width = offW; off.height = offH;
-    const octx = off.getContext("2d");
-    octx.font = `${fontSize}px ${_patternFontFamily}`;
-    octx.fillStyle = "#fff";
-    octx.textBaseline = "middle";
-
-    const bufferZone = Math.ceil(bandDepth * 0.85);
-
-    // 1. Draw the title text character-by-character, skipping bottom-edge buffer zones
-    let curX = 2;
-    for (let char of displayText) {
-      const charW = octx.measureText(char).width;
-      let inForbiddenZone = false;
-      if (subChars) {
-        for (let i = 0; i < segs.length; i++) {
-          const seg = segs[i];
-          const isBottom = Math.abs(seg.y0 - (H - frameCx)) < 1 && Math.abs(seg.y1 - (H - frameCx)) < 1;
-          if (!isBottom) continue;
-          const segStart = i > 0 ? cumLens[i - 1] : 0;
-          const segEnd = cumLens[i];
-          if (curX + charW > segStart - bufferZone && curX < segEnd + bufferZone) {
-            inForbiddenZone = true;
-            break;
-          }
-        }
-      }
-      if (!inForbiddenZone) {
-        octx.fillText(char, curX, offH / 2);
-      }
-      curX += charW;
-    }
-
-    // 2. Draw the subtitle pre-rotated 180° in the bottom-edge segment region.
-    //    The bottom edge naturally inverts text (ny=-1), so pre-rotating makes it upright.
-    if (subChars) {
-      for (let i = 0; i < segs.length; i++) {
-        const seg = segs[i];
-        const isBottom = Math.abs(seg.y0 - (H - frameCx)) < 1 && Math.abs(seg.y1 - (H - frameCx)) < 1;
-        if (!isBottom) continue;
-        const segStart = i > 0 ? cumLens[i - 1] : 0;
-        const segEnd = cumLens[i];
-        const segW = segEnd - segStart;
-        const segMidX = segStart + segW / 2;
-
-        // Render subtitle into a small temporary canvas, then draw it vertically flipped into the strip
-        // Auto-scale font so the full subtitle text fits within the segment width
-        let subFontSize = fontSize;
-        const tmpC = document.createElement("canvas");
-        tmpC.width = Math.ceil(segW); tmpC.height = offH;
-        const tc = tmpC.getContext("2d");
-        tc.fillStyle = "#fff";
-        tc.textBaseline = "middle";
-        // Measure at full size first, then scale down if needed
-        tc.font = `${subFontSize}px ${_patternFontFamily}`;
-        const fullWidth = tc.measureText(subChars).width;
-        if (fullWidth > segW * 0.95) {
-          subFontSize = Math.floor(subFontSize * (segW * 0.95) / fullWidth);
-          tc.font = `${subFontSize}px ${_patternFontFamily}`;
-        }
-        // Repeat subtitle to fill the segment
-        const subReps = Math.max(1, Math.ceil(segW * 1.5 / tc.measureText(subChars + " ").width));
-        const subText = (subChars + " ").repeat(subReps).trimEnd();
-        // Draw subtitle text into temp canvas
-        let subX = 2;
-        for (let char of subText) {
-          const charW = tc.measureText(char).width;
-          if (subX > segW) break;
-          tc.fillText(char, subX, offH / 2);
-          subX += charW;
-        }
-        // Draw temp canvas vertically flipped into the main strip at the bottom segment position.
-        // Only flip Y (not rotate 180°) so text stays left-to-right after the bottom edge's ny=-1 inversion.
-        octx.save();
-        octx.translate(segStart, offH);
-        octx.scale(1, -1);
-        octx.drawImage(tmpC, 0, 0);
-        octx.restore();
-      }
-    }
-    return { canvas: off, ctx: octx };
-  }
-
-  return {
-    W, H, minSide, bandDepth, frameCx, fontSize,
-    segs, segLens, cumLens, totalLen, perimToWorld, sampleAt,
-    offW, offH, displayText, renderStrip,
-  };
-}
-
-function buildPatternFromFontContours() {
-  const cfg = getFrameWarpConfig();
-  if (!cfg) return false;
-  const { segs, segLens, cumLens, totalLen, perimToWorld, offW, offH, fontSize } = cfg;
-  const strokeW = Math.max(state.lineThickness * 0.7, 5);
-
-  const { ctx: octx } = cfg.renderStrip();
-
-  // ── Edge-pixel extraction ────────────────────────────────────────────────────
-  const raw = octx.getImageData(0, 0, offW, offH).data;
-  const filled = (x, y) => x >= 0 && x < offW && y >= 0 && y < offH && raw[(y * offW + x) * 4] > 64;
-  const isEdge = (x, y) =>
-    filled(x, y) && (!filled(x - 1, y) || !filled(x + 1, y) || !filled(x, y - 1) || !filled(x, y + 1));
-
-  const step = Math.max(2, Math.round(fontSize / 34));
-  const edgePts = [], edgeSet = new Set();
-  for (let y = 1; y < offH - 1; y++) {
-    for (let x = 1; x < offW - 1; x++) {
-      if (!isEdge(x, y)) continue;
-      const sx = Math.round(x / step) * step;
-      const sy = Math.round(y / step) * step;
-      const key = sy * offW + sx;
-      if (!edgeSet.has(key)) { edgeSet.add(key); edgePts.push({ x: sx, y: sy }); }
-    }
-  }
-  if (edgePts.length < 8) return false;
-
-  // ── Direction-biased contour chaining ───────────────────────────────────────
-  const cellSize = step * 3;
-  const grid = new Map();
-  for (const p of edgePts) {
-    const gk = `${Math.floor(p.x / cellSize)},${Math.floor(p.y / cellSize)}`;
-    if (!grid.has(gk)) grid.set(gk, []);
-    grid.get(gk).push(p);
-  }
-
-  function nextAlong(cx, cy, dX, dY, maxDist, usedSet) {
-    const gx = Math.floor(cx / cellSize), gy = Math.floor(cy / cellSize);
-    let best = null, bestScore = Infinity;
-    const hasDir = dX !== 0 || dY !== 0;
-    for (let dgx = -2; dgx <= 2; dgx++) {
-      for (let dgy = -2; dgy <= 2; dgy++) {
-        const cell = grid.get(`${gx + dgx},${gy + dgy}`);
-        if (!cell) continue;
-        for (const p of cell) {
-          if (usedSet.has(p)) continue;
-          const dx = p.x - cx, dy = p.y - cy;
-          const d = Math.hypot(dx, dy);
-          if (d >= maxDist || d < 0.5) continue;
-          let score = d;
-          if (hasDir) {
-            const dot = (dx / d) * dX + (dy / d) * dY;
-            if (dot < -0.2) continue;
-            score += (1 - dot) * d * 1.8;
-          }
-          if (score < bestScore) { bestScore = score; best = p; }
-        }
-      }
-    }
-    return best;
-  }
-
-  const usedSet = new Set();
-  let rawChains = [];
-  const maxGap = step * 3.4;            // bridge bigger gaps while tracing
-  const minChainLen = Math.max(4, Math.round(fontSize * 0.08 / step));
-
-  for (const seed of edgePts) {
-    if (usedSet.has(seed)) continue;
-    const chain = [seed]; usedSet.add(seed);
-    let cur = seed, dX = 0, dY = 0;
-    for (let i = 0; i < 2000; i++) {
-      const next = nextAlong(cur.x, cur.y, dX, dY, maxGap, usedSet);
-      if (!next) break;
-      const ndx = next.x - cur.x, ndy = next.y - cur.y;
-      const nd = Math.hypot(ndx, ndy) || 1;
-      dX = dX * 0.55 + (ndx / nd) * 0.45;
-      dY = dY * 0.55 + (ndy / nd) * 0.45;
-      const dl = Math.hypot(dX, dY) || 1; dX /= dl; dY /= dl;
-      chain.push(next); usedSet.add(next); cur = next;
-    }
-    if (chain.length >= 3) rawChains.push(chain);
-  }
-  if (!rawChains.length) return false;
-
-  // ── Stitch pass ──────────────────────────────────────────────────────────────
-  // Greedily join chains whose endpoints sit close together so the frame reads
-  // as long flowing strokes instead of many short fragments.
-  const maxStitch = step * 7;
-  function stitchChains(chains) {
-    const remaining = chains.slice();
-    const out = [];
-    while (remaining.length) {
-      let current = remaining.shift();
-      let extended = true;
-      while (extended) {
-        extended = false;
-        const tail = current[current.length - 1];
-        let bestIdx = -1, bestDist = maxStitch, bestReverse = false;
-        for (let i = 0; i < remaining.length; i++) {
-          const c = remaining[i];
-          const dStart = Math.hypot(c[0].x - tail.x, c[0].y - tail.y);
-          const dEnd = Math.hypot(c[c.length - 1].x - tail.x, c[c.length - 1].y - tail.y);
-          if (dStart < bestDist) { bestDist = dStart; bestIdx = i; bestReverse = false; }
-          if (dEnd < bestDist) { bestDist = dEnd; bestIdx = i; bestReverse = true; }
-        }
-        if (bestIdx >= 0) {
-          let c = remaining.splice(bestIdx, 1)[0];
-          if (bestReverse) c = c.slice().reverse();
-          current = current.concat(c);
-          extended = true;
-        }
-      }
-      out.push(current);
-    }
-    return out;
-  }
-  rawChains = stitchChains(rawChains).filter((c) => c.length >= minChainLen);
-  if (!rawChains.length) return false;
-
-  // ── Smooth chains and warp to frame world coords ────────────────────────────
-  const smooth = (chain, win = 8) =>
-    chain.map((p, i) => {
-      let sx = 0, sy = 0, cnt = 0;
-      for (let j = Math.max(0, i - win); j <= Math.min(chain.length - 1, i + win); j++) {
-        sx += chain[j].x; sy += chain[j].y; cnt++;
-      }
-      return { x: sx / cnt, y: sy / cnt };
-    });
-
-  const allPaths = [];
-  for (const chain of rawChains) {
-    const pts = smooth(chain).map((p) => {
-      // p.x = horizontal position in text strip → arc distance along frame perimeter
-      // p.y = vertical position in strip → radial offset (above/below centreline)
-      const r = p.y - offH / 2; // + = inward (toward canvas centre), − = outward
-      return perimToWorld(p.x, r);
-    });
-    const pathObj = { points: pts, width: strokeW, phase: rand(0, Math.PI * 2), branches: [] };
-    allPaths.push(pathObj);
-    if (state.mirrorMode === "horizontal") allPaths.push(mirrorPath(pathObj, true, false));
-    else if (state.mirrorMode === "vertical") allPaths.push(mirrorPath(pathObj, false, true));
-  }
-
-  if (!allPaths.length) return false;
-  state.paths = allPaths;
-  return true;
-}
-
 function buildPattern() {
-  const factors = state.useTextSeed ? textSeedFactors(state.textSeedValue) : textSeedFactors("");
-  state.seed = state.useTextSeed && factors.active ? factors.seed : Date.now() >>> 0;
-  updateTextSeedMeta(state.textSeedValue);
+  state.seed = Date.now() >>> 0;
 
   // Flat Ornament mode bypasses the organic stroke pipeline entirely.
   if (state.ornamentMode) {
@@ -1710,14 +991,12 @@ function buildPattern() {
     return;
   }
 
-  const densityValue = clamp(state.density + factors.density, 0.15, 1);
-  const straightValue = clamp(state.straightLines + factors.straight, 0, 1);
-  const flourishesValue = clamp(state.flourishes + factors.flourishes, 0, 1);
-  const smoothnessValue = clamp(state.curveSmoothness + factors.smoothness, 0, 1);
-  const circleDensityValue = clamp(state.circleGuideDensity + factors.guideDensity, 0.1, 1);
-  const circleInfluenceValue = clamp(state.circleGuideInfluence + factors.guideInfluence, 0, 1);
-  const textActive = state.useTextSeed && factors.active;
-  const scriptInfluence = textActive ? clamp(state.scriptStrokeInfluence, 0, 1) : 0;
+  const densityValue = clamp(state.density, 0.15, 1);
+  const straightValue = clamp(state.straightLines, 0, 1);
+  const flourishesValue = clamp(state.flourishes, 0, 1);
+  const smoothnessValue = clamp(state.curveSmoothness, 0, 1);
+  const circleDensityValue = clamp(state.circleGuideDensity, 0.1, 1);
+  const circleInfluenceValue = clamp(state.circleGuideInfluence, 0, 1);
   const runtime = {
     straightLines: straightValue,
     flourishes: flourishesValue,
@@ -1728,27 +1007,6 @@ function buildPattern() {
 
   createBlankZones();
 
-  // Text frame mode.
-  if (state.useTextSeed && state.textSeedValue.trim()) {
-    if (state.textAsStroke) {
-      // Clean mode: the visible frame is the warped glyph fill (drawTextFrame).
-      // We still generate the contour paths so the bubble/glass/edge/emboss FX
-      // have a mask to glow around — but the raw strokes themselves are not drawn.
-      buildPatternFromFontContours(); // populates state.paths (may stay empty)
-      state.progress = state.animate ? 0 : 1;
-      state.hold = 0;
-      draw();
-      return;
-    }
-    // Contour mode: trace each letter into stroke paths along the frame.
-    if (buildPatternFromFontContours()) {
-      state.progress = state.animate ? 0 : 1;
-      state.hold = 0;
-      draw();
-      return;
-    }
-  }
-
   createCircleGuides(runtime);
   const count = Math.floor(7 + densityValue * 20);
   const maxAttempts = count * 24;
@@ -1756,7 +1014,6 @@ function buildPattern() {
   const collisionCell = Math.max(10, state.lineThickness * 1.3);
   const minDistance = Math.max(clamp(state.noOverlapGap, 4, 80), state.lineThickness * 1.45);
   const basePaths = [];
-  const scriptQuota = textActive ? Math.floor(count * (0.28 + scriptInfluence * 0.5)) : 0;
   let attempts = 0;
 
   const quadMirror = state.mirrorMode === "quad";
@@ -1765,10 +1022,7 @@ function buildPattern() {
     const seedSignX = (state.mirrorMode === "horizontal" || quadMirror) ? -1 : (chance(0.5) ? -1 : 1);
     const seedSignY = quadMirror ? -1 : (state.startFromBottom ? 1 : -1);
     let path = null;
-    if (textActive && basePaths.length < scriptQuota && chance(0.58 + scriptInfluence * 0.36)) {
-      path = createCalligraphicStrokePath(seedSignX, seedSignY, runtime);
-    }
-    if (!path && state.useCircleScaffold && chance(0.68 + circleInfluenceValue * 0.28)) {
+    if (state.useCircleScaffold && chance(0.68 + circleInfluenceValue * 0.28)) {
       path = createCircleScaffoldPath(seedSignX, seedSignY, runtime);
     }
     if (!path) path = createCurlPath(seedSignX, seedSignY, runtime);
@@ -2039,28 +1293,6 @@ function drawPath(points, width, progress, phase) {
   }
 }
 
-function drawGuideCircles() {
-  if (!state.showGuides || !state.guideCircles.length) return;
-  ctx.save();
-  for (const link of state.guideLinks) {
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(255, 92, 156, 0.14)";
-    ctx.lineWidth = Math.max(10, Math.min(link.a.r, link.b.r) * 0.42);
-    ctx.lineCap = "round";
-    ctx.moveTo(link.a.x, link.a.y);
-    ctx.lineTo(link.b.x, link.b.y);
-    ctx.stroke();
-  }
-  ctx.lineWidth = 1;
-  for (const circle of state.guideCircles) {
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(120, 170, 255, 0.22)";
-    ctx.arc(circle.x, circle.y, circle.r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function strokePolyline(points, width, progress, color, alpha, options = {}, targetCtx = ctx) {
   if (points.length < 2 || progress <= 0) return;
   const drawCount = clamp(Math.ceil(points.length * progress), 2, points.length);
@@ -2120,23 +1352,8 @@ function paintPathMask(targetCtx, widthScale = 1, expandPx = 0, alpha = 1) {
   targetCtx.restore();
 }
 
-// Clip/coverage mask for path-tracing FX. In text-frame mode this is the smooth
-// anti-aliased glyph silhouette (optionally fattened) so textures and shadows hug
-// the clean letterforms; otherwise it strokes the coarse traced contour paths,
-// whose ~8px-grid points stair-step under blur on light backgrounds.
+// Clip/coverage mask for path-tracing FX: strokes the pattern paths.
 function paintFxClipMask(targetCtx, widthScale = 1, expandPx = 0, fattenPx = 0) {
-  const m = getTextFrameMask();
-  if (m) {
-    targetCtx.save();
-    if (fattenPx > 0.5) {
-      targetCtx.filter = `blur(${fattenPx.toFixed(2)}px)`;
-      for (let i = 0; i < 4; i += 1) targetCtx.drawImage(m, 0, 0);
-      targetCtx.filter = "none";
-    }
-    targetCtx.drawImage(m, 0, 0);
-    targetCtx.restore();
-    return;
-  }
   drawPathMask(targetCtx, widthScale, expandPx);
 }
 
@@ -2156,25 +1373,6 @@ function drawExpandedPathMask(widthScale, expandPx, blurPx = 0, scale = 1) {
   if (blurPx > 0) maskCtx.filter = `blur(${(blurPx * scale).toFixed(2)}px)`;
   paintPathMask(maskCtx, widthScale, expandPx);
   maskCtx.restore();
-  return maskCanvas;
-}
-
-function thresholdMask(sourceCanvas, alphaCutoff = 24) {
-  const sourceCtx = sourceCanvas.getContext("2d");
-  const image = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-  const data = image.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3] >= alphaCutoff ? 255 : 0;
-    data[i] = 255;
-    data[i + 1] = 255;
-    data[i + 2] = 255;
-    data[i + 3] = alpha;
-  }
-
-  const maskCanvas = createFxCanvas();
-  maskCanvas.width = sourceCanvas.width;
-  maskCanvas.height = sourceCanvas.height;
-  maskCanvas.getContext("2d").putImageData(image, 0, 0);
   return maskCanvas;
 }
 
@@ -2364,36 +1562,6 @@ function drawEdgeLightShadowFx() {
   const blur = 0.8 + amount * 4.8;
   const light = mixRgb(state.strokeColor, "#ffffff", 0.8);
 
-  // Text-frame mode: build the soft highlight + shadow from offset, blurred copies
-  // of the smooth glyph silhouette, so the foggy edge hugs the clean letterforms
-  // (no messy gray lines tracing the coarse contour paths, no stair-stepped blur).
-  const glyphMask = getTextFrameMask();
-  if (glyphMask) {
-    const offsetCopy = (offX, offY, blurPx, color) => {
-      const c = document.createElement("canvas");
-      c.width = canvas.width; c.height = canvas.height;
-      const cx = c.getContext("2d");
-      cx.filter = `blur(${blurPx.toFixed(2)}px)`;
-      cx.drawImage(glyphMask, offX, offY);
-      cx.filter = "none";
-      tintLayer(c, color);
-      return c;
-    };
-    const lightLayer = offsetCopy(-lightOffset, -lightOffset, blur, rgbToRgba(light, 1));
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = clamp((0.1 + amount * 0.36) * state.strokeAlpha, 0, 1);
-    ctx.drawImage(lightLayer, 0, 0);
-    ctx.restore();
-    const shadowLayer = offsetCopy(lightOffset, lightOffset, blur * 0.92, "#000000");
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    ctx.globalAlpha = clamp((0.08 + amount * 0.32) * state.strokeAlpha, 0, 1);
-    ctx.drawImage(shadowLayer, 0, 0);
-    ctx.restore();
-    return;
-  }
-
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   forEachPathSegment((points, width, progress) => {
@@ -2444,43 +1612,6 @@ function edgeBandMask(S, inv, scale, radius) {
   return c;
 }
 
-// Full-canvas white silhouette of the warped glyph frame (mirrored to match the
-// visible frame), cached across animation frames. Used as the FX silhouette
-// source in text-frame mode so the glass/bubble edges trace the SAME smooth
-// anti-aliased glyph shapes as the visible frame — not the coarse traced
-// contour paths, which snap to a ~8px grid and look pixelated.
-let _textFrameMaskCanvas = null;
-let _textFrameMaskSig = "";
-function getTextFrameMask() {
-  if (!(state.useTextSeed && state.textAsStroke && state.textSeedValue.trim())) return null;
-  const sig = [state.mirrorMode, state.textSeedValue, state.subtitleValue,
-    canvas.width, canvas.height, _patternFontFamily].join("|");
-  if (_textFrameMaskCanvas && _textFrameMaskSig === sig) return _textFrameMaskCanvas;
-  const cfg = getFrameWarpConfig();
-  if (!cfg) return null;
-  const base = warpStripToLayer(cfg); // white glyphs, base half
-  const full = document.createElement("canvas");
-  full.width = canvas.width; full.height = canvas.height;
-  const fx = full.getContext("2d");
-  const stamp = (sx, sy) => {
-    fx.save();
-    fx.translate(sx < 0 ? canvas.width : 0, sy < 0 ? canvas.height : 0);
-    fx.scale(sx, sy);
-    fx.drawImage(base, 0, 0);
-    fx.restore();
-  };
-  if (frameIsQuadSymmetric()) {
-    stamp(1, 1); stamp(-1, 1); stamp(1, -1); stamp(-1, -1);
-  } else {
-    stamp(1, 1);
-    if (state.mirrorMode === "horizontal") stamp(-1, 1);
-    else if (state.mirrorMode === "vertical") stamp(1, -1);
-  }
-  _textFrameMaskCanvas = full;
-  _textFrameMaskSig = sig;
-  return full;
-}
-
 // White anti-aliased silhouette of the pattern (merged into blobs) and its inverse.
 // `mergeR` (scaled px) closes thin necks between nearby blobs metaball-style:
 // blur spreads the field, then re-stacking re-densifies it so adjacent shapes
@@ -2488,24 +1619,10 @@ function getTextFrameMask() {
 function buildBubbleSilhouette(scale, expandPx, mergeR = 0) {
   const raw = createFxCanvas(scale);
   const rctx = raw.getContext("2d");
-  const textMask = getTextFrameMask();
-  if (textMask) {
-    // Smooth source: the actual warped glyph silhouette. Fatten by expandPx via
-    // a blur+restack so the glass body wraps the ink edge cleanly.
-    rctx.save();
-    if (expandPx > 0.5) {
-      rctx.filter = `blur(${(expandPx * scale).toFixed(2)}px)`;
-      for (let i = 0; i < 4; i++) rctx.drawImage(textMask, 0, 0, raw.width, raw.height);
-      rctx.filter = "none";
-    }
-    rctx.drawImage(textMask, 0, 0, raw.width, raw.height);
-    rctx.restore();
-  } else {
-    rctx.save();
-    rctx.scale(scale, scale);
-    paintPathMask(rctx, 1, expandPx);
-    rctx.restore();
-  }
+  rctx.save();
+  rctx.scale(scale, scale);
+  paintPathMask(rctx, 1, expandPx);
+  rctx.restore();
 
   let S = raw;
   if (mergeR > 0.5) {
@@ -2612,6 +1729,204 @@ function applyFilmGrain(layer, amount, seed, cell) {
     }
   }
   lctx.putImageData(img, 0, 0);
+}
+
+// ─── Metal / 3D material ─────────────────────────────────────────────────────
+// Shades the pattern strokes as solid 3D bodies instead of flat lines. The
+// stroke mask is blurred into a height field (a blur of a constant-width stroke
+// peaks along its centreline, which is exactly a tube cross-section), the height
+// field is differentiated into surface normals, and each pixel is then lit as a
+// reflective material: an environment ramp sampled by the reflection vector
+// (the horizon flash in that ramp is what reads as "chrome"), plus a Blinn-Phong
+// specular hotspot and an optional iridescent fringe on the grazing edges.
+
+// Environment ramps, as stops of [t, "#rrggbb"] with t = 0 straight down,
+// 0.5 = horizon, 1 = straight up. The tight bright stop either side of 0.5 is
+// the horizon flash and is what separates metal from plastic.
+const METAL_RAMPS = {
+  chrome: [
+    [0.0, "#0b0f16"], [0.30, "#39424f"], [0.46, "#8e9aa9"],
+    [0.50, "#ffffff"], [0.56, "#cfd7e0"], [0.72, "#6f7885"], [1.0, "#e9eff6"],
+  ],
+  silver: [
+    [0.0, "#232a33"], [0.32, "#5c6673"], [0.47, "#aab4c0"],
+    [0.50, "#ffffff"], [0.57, "#dde3ea"], [0.74, "#8d97a3"], [1.0, "#f2f6fa"],
+  ],
+  gold: [
+    [0.0, "#1a0c00"], [0.26, "#7a430a"], [0.44, "#e0a02c"],
+    [0.50, "#fffbe8"], [0.57, "#ffcc55"], [0.74, "#8f5410"], [1.0, "#fff3c0"],
+  ],
+  copper: [
+    [0.0, "#2a0f06"], [0.30, "#803a18"], [0.46, "#c9713f"],
+    [0.50, "#ffe2cf"], [0.58, "#e08a56"], [0.75, "#8c4526"], [1.0, "#ffd6bb"],
+  ],
+};
+
+function buildMetalLut(preset, tintHex, tintAmount) {
+  const stops = METAL_RAMPS[preset] || METAL_RAMPS.chrome;
+  const tint = hexToRgb(tintHex) || { r: 255, g: 255, b: 255 };
+  const N = 256;
+  const lut = new Uint8ClampedArray(N * 3);
+  for (let i = 0; i < N; i += 1) {
+    const t = i / (N - 1);
+    let a = stops[0], b = stops[stops.length - 1];
+    for (let s = 0; s < stops.length - 1; s += 1) {
+      if (t >= stops[s][0] && t <= stops[s + 1][0]) { a = stops[s]; b = stops[s + 1]; break; }
+    }
+    const span = Math.max(1e-6, b[0] - a[0]);
+    const k = clamp((t - a[0]) / span, 0, 1);
+    const ca = hexToRgb(a[1]), cb = hexToRgb(b[1]);
+    let r = ca.r + (cb.r - ca.r) * k;
+    let g = ca.g + (cb.g - ca.g) * k;
+    let bl = ca.b + (cb.b - ca.b) * k;
+    if (tintAmount > 0.001) {
+      // Multiplicative tint keeps the ramp's luminance structure (and so the
+      // horizon flash) intact while pulling the whole material toward one hue.
+      r = r * (1 - tintAmount) + (r * tint.r) / 255 * tintAmount;
+      g = g * (1 - tintAmount) + (g * tint.g) / 255 * tintAmount;
+      bl = bl * (1 - tintAmount) + (bl * tint.b) / 255 * tintAmount;
+    }
+    lut[i * 3] = r;
+    lut[i * 3 + 1] = g;
+    lut[i * 3 + 2] = bl;
+  }
+  return lut;
+}
+
+function drawMetalFx() {
+  if (!state.fxMetal || !state.paths.length) return;
+
+  const W = canvas.width, H = canvas.height;
+  // Half-resolution shading: the material is all low-frequency gradients, so the
+  // upscale is invisible while the per-pixel loop gets 4x cheaper.
+  const scale = clamp(state.fxMetalQuality, 0.35, 1);
+  const w = Math.max(1, Math.round(W * scale));
+  const h = Math.max(1, Math.round(H * scale));
+
+  // 1. Coverage mask (anti-aliased) — also the final alpha.
+  const cover = createFxCanvas(scale);
+  const coverCtx = cover.getContext("2d");
+  coverCtx.save();
+  coverCtx.scale(scale, scale);
+  paintPathMask(coverCtx, 1, 0);
+  coverCtx.restore();
+  const coverData = coverCtx.getImageData(0, 0, w, h).data;
+
+  // 2. Height field: the same mask blurred by ~half the stroke width, so it
+  //    peaks along each stroke's centreline and falls off to its edges.
+  const relief = clamp(state.fxMetalRelief, 0, 1);
+  const blurPx = Math.max(1, state.lineThickness * scale * (0.30 + relief * 0.42));
+  const hf = createFxCanvas(scale);
+  const hfCtx = hf.getContext("2d");
+  hfCtx.save();
+  hfCtx.filter = `blur(${blurPx.toFixed(2)}px)`;
+  hfCtx.drawImage(cover, 0, 0);
+  hfCtx.restore();
+  const hData = hfCtx.getImageData(0, 0, w, h).data;
+
+  // Dome profile: remap the blurred ramp so the cross-section is round-topped
+  // rather than linear, which is what gives the stroke a tube (not ribbon) read.
+  const height = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < height.length; i += 1, p += 4) {
+    const a = hData[p + 3] / 255;
+    height[i] = Math.sqrt(clamp(a, 0, 1));
+  }
+
+  // 3. Light setup.
+  const ang = (state.fxMetalLightAngle * Math.PI) / 180;
+  const lx = Math.cos(ang), ly = Math.sin(ang), lz = 0.72;
+  const ll = Math.hypot(lx, ly, lz);
+  const Lx = lx / ll, Ly = ly / ll, Lz = lz / ll;
+  // View is straight on, so the half-vector is L + (0,0,1) normalised.
+  const hx = Lx, hy = Ly, hz = Lz + 1;
+  const hl = Math.hypot(hx, hy, hz);
+  const Hx = hx / hl, Hy = hy / hl, Hz = hz / hl;
+
+  const bump = 3.0 + relief * 26.0;
+  const shininess = 12 + state.fxMetalSpecSharp * 180;
+  const specAmt = state.fxMetalSpec;
+  const irid = state.fxMetalIridescence;
+  const lut = buildMetalLut(state.fxMetalPreset, state.fxMetalTint, state.fxMetalTintAmount);
+
+  const out = ctx.createImageData(w, h);
+  const o = out.data;
+
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const i = y * w + x;
+      const alpha = coverData[i * 4 + 3];
+      if (alpha === 0) continue;
+
+      // Central differences → surface gradient → normal.
+      const xm = x > 0 ? i - 1 : i, xp = x < w - 1 ? i + 1 : i;
+      const ym = y > 0 ? i - w : i, yp = y < h - 1 ? i + w : i;
+      const gx = (height[xp] - height[xm]) * bump;
+      const gy = (height[yp] - height[ym]) * bump;
+      const nl = Math.hypot(gx, gy, 1);
+      const Nx = -gx / nl, Ny = -gy / nl, Nz = 1 / nl;
+
+      // Reflection of the straight-on view about the normal.
+      const Ry = 2 * Nz * Ny; // N · V is just Nz for a straight-on view
+
+      // Environment lookup, indexed by the reflected ray's vertical component.
+      const t = clamp(Ry * 0.5 + 0.5, 0, 1);
+      let idx = Math.round(t * 255) * 3;
+      let r = lut[idx], g = lut[idx + 1], b = lut[idx + 2];
+
+      if (irid > 0.001) {
+        // Split the ramp lookup per channel so grazing angles fringe into
+        // rainbow, the way a thin film / anodised metal does.
+        const spread = irid * 0.16 * (1 - Nz);
+        const ir = Math.round(clamp(t + spread, 0, 1) * 255) * 3;
+        const ib = Math.round(clamp(t - spread, 0, 1) * 255) * 3;
+        r = r * (1 - irid) + lut[ir] * irid;
+        b = b * (1 - irid) + lut[ib + 2] * irid;
+        g = g * (1 - irid * 0.4) + lut[idx + 1] * irid * 0.4;
+      }
+
+      // Metal is near-pure reflection, so the diffuse term only nudges the
+      // ramp — weighting it any higher turns the material into matte paint.
+      const diff = Math.max(0, Nx * Lx + Ny * Ly + Nz * Lz);
+      const shade = 0.82 + diff * 0.30;
+      r *= shade; g *= shade; b *= shade;
+
+      // Sharp specular hotspot on top.
+      const nh = Math.max(0, Nx * Hx + Ny * Hy + Nz * Hz);
+      const spec = Math.pow(nh, shininess) * specAmt * 255;
+      r += spec; g += spec; b += spec;
+
+      // Ambient occlusion in the crevices where strokes cross.
+      const ao = 0.78 + 0.22 * height[i];
+      const p = i * 4;
+      o[p] = clamp(r * ao, 0, 255);
+      o[p + 1] = clamp(g * ao, 0, 255);
+      o[p + 2] = clamp(b * ao, 0, 255);
+      o[p + 3] = alpha;
+    }
+  }
+
+  const shaded = createFxCanvas(scale);
+  shaded.getContext("2d").putImageData(out, 0, 0);
+
+  // 4. Contact shadow underneath, so the material sits above the ground.
+  const drop = state.fxMetalShadow;
+  if (drop > 0.001) {
+    const off = state.lineThickness * (0.35 + relief * 0.5);
+    ctx.save();
+    ctx.globalAlpha = clamp(drop * 0.75, 0, 1);
+    ctx.globalCompositeOperation = "multiply";
+    ctx.filter = `blur(${(state.lineThickness * 0.55).toFixed(2)}px)`;
+    ctx.drawImage(tintedMaskLayer(cover, "#000000", 1), off * 0.7, off, W, H);
+    ctx.filter = "none";
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.globalAlpha = clamp(state.strokeAlpha, 0, 1);
+  ctx.drawImage(shaded, 0, 0, W, H);
+  ctx.restore();
 }
 
 function drawEmbossFx() {
@@ -2906,45 +2221,6 @@ function drawAudioTravellers() {
   drawFxLayer(rimLayer, "screen", 0.95);
 }
 
-// Warp the horizontal text strip onto a full-resolution layer following the
-// frame perimeter. On straight edges the warp is a rigid rotation+translation,
-// so one setTransform per segment reproduces it exactly. Returns a canvas
-// holding the warped white glyphs (base half only — caller mirrors).
-function warpStripToLayer(cfg) {
-  const { offH, totalLen, sampleAt, renderStrip } = cfg;
-  const strip = renderStrip().canvas;
-  const layer = document.createElement("canvas");
-  layer.width = canvas.width;
-  layer.height = canvas.height;
-  const lctx = layer.getContext("2d");
-  const px = canvas.width / state.canvasWidth; // device-pixel scale (usually 1)
-
-  // Draw the strip in thin slices stepping along the perimeter. Each slice is
-  // oriented by the tangent/normal sampled at its centre, so on rounded corners
-  // the slices fan smoothly around the bend instead of being chopped at a 90°
-  // joint. Straight runs render identically to a single affine.
-  const stepW = 3;        // strip-x advance per slice (world px)
-  const overlap = 0.8;    // overdraw to hide hairline seams between slices
-  for (let d = 0; d < totalLen; d += stepW) {
-    const sliceW = Math.min(stepW, totalLen - d);
-    if (sliceW <= 0) break;
-    const s = sampleAt(d + sliceW / 2);
-    const sgn = s.flip ? -1 : 1;
-    const nx = s.nx * sgn, ny = s.ny * sgn;
-    const p0x = s.x - s.tx * (sliceW / 2); // centreline at strip x = d
-    const p0y = s.y - s.ty * (sliceW / 2);
-    lctx.setTransform(
-      s.tx * px, s.ty * px,
-      nx * px, ny * px,
-      (p0x - s.tx * d - nx * offH / 2) * px,
-      (p0y - s.ty * d - ny * offH / 2) * px,
-    );
-    lctx.drawImage(strip, d, 0, sliceW + overlap, offH, d, 0, sliceW + overlap, offH);
-  }
-  lctx.setTransform(1, 0, 0, 1, 0, 0);
-  return layer;
-}
-
 // Recolour the opaque pixels of a layer in place via source-in.
 function tintLayer(layer, color) {
   const lctx = layer.getContext("2d");
@@ -2952,85 +2228,6 @@ function tintLayer(layer, color) {
   lctx.fillStyle = color;
   lctx.fillRect(0, 0, layer.width, layer.height);
   lctx.globalCompositeOperation = "source-over";
-}
-
-// Composite a base-half layer onto the main canvas, mirroring to match the frame.
-function compositeMirrored(layer, alpha, mode) {
-  ctx.save();
-  ctx.globalAlpha = clamp(alpha, 0, 1);
-  ctx.globalCompositeOperation = mode;
-  const stamp = (sx, sy) => {
-    ctx.save();
-    ctx.translate(sx < 0 ? canvas.width : 0, sy < 0 ? canvas.height : 0);
-    ctx.scale(sx, sy);
-    ctx.drawImage(layer, 0, 0);
-    ctx.restore();
-  };
-  if (frameIsQuadSymmetric()) {
-    stamp(1, 1); stamp(-1, 1); stamp(1, -1); stamp(-1, -1);
-  } else {
-    stamp(1, 1);
-    if (state.mirrorMode === "horizontal") stamp(-1, 1);
-    else if (state.mirrorMode === "vertical") stamp(1, -1);
-  }
-  ctx.restore();
-}
-
-// Clean text frame: the warped decorative letters rendered directly as the frame
-// (no messy contour tracing), with a neon glow in the chosen colour.
-function drawTextFrame() {
-  if (!state.useTextSeed || !state.textAsStroke) return;
-  const cfg = getFrameWarpConfig();
-  if (!cfg) return;
-
-  const baseLayer = warpStripToLayer(cfg);   // white glyphs
-  const fs = cfg.fontSize;
-
-  // Colourise a copy of the glyphs.
-  const colored = document.createElement("canvas");
-  colored.width = canvas.width; colored.height = canvas.height;
-  const cc = colored.getContext("2d");
-  cc.drawImage(baseLayer, 0, 0);
-  cc.globalCompositeOperation = "source-in";
-  cc.fillStyle = state.textColor;
-  cc.fillRect(0, 0, colored.width, colored.height);
-  cc.globalCompositeOperation = "source-over";
-
-  // Bake glow + core into a single base-half frame layer.
-  const frame = document.createElement("canvas");
-  frame.width = canvas.width; frame.height = canvas.height;
-  const fctx = frame.getContext("2d");
-  fctx.globalCompositeOperation = "lighter";
-  fctx.globalAlpha = 0.4;
-  fctx.filter = `blur(${(fs * 0.3).toFixed(1)}px)`;
-  fctx.drawImage(colored, 0, 0);
-  fctx.globalAlpha = 0.7;
-  fctx.filter = `blur(${(fs * 0.09).toFixed(1)}px)`;
-  fctx.drawImage(colored, 0, 0);
-  fctx.filter = "none";
-  fctx.globalCompositeOperation = "source-over";
-  fctx.globalAlpha = 1;
-  fctx.drawImage(colored, 0, 0);
-  // Bright white core for the neon-tube highlight.
-  fctx.globalCompositeOperation = "lighter";
-  fctx.globalAlpha = 0.5;
-  fctx.filter = `blur(${(fs * 0.02 + 1).toFixed(1)}px)`;
-  fctx.drawImage(baseLayer, 0, 0);
-  fctx.filter = "none";
-  fctx.globalAlpha = 1;
-
-  compositeMirrored(frame, 1, "source-over");
-}
-
-// Hidable reference overlay: same warped letters tinted pink, so the user can
-// read the source text and see how it bends around the frame.
-function drawTextReference() {
-  if (!state.useTextSeed || !state.showTextReference) return;
-  const cfg = getFrameWarpConfig();
-  if (!cfg) return;
-  const layer = warpStripToLayer(cfg);
-  tintLayer(layer, "#ff5ea0");
-  compositeMirrored(layer, 0.55, "screen");
 }
 
 // ---------------------------------------------------------------------------
@@ -3283,8 +2480,7 @@ function drawOrnament() {
   ctx.fillStyle = state.ornBg;
   ctx.fillRect(0, 0, W, H);
 
-  const factors = state.useTextSeed ? textSeedFactors(state.textSeedValue) : { seed: 0, active: false };
-  const seed = factors.active ? factors.seed : (state.seed >>> 0) || 1;
+  const seed = (state.seed >>> 0) || 1;
   const rng = mulberry32(seed);
 
   const dR = minSide * clamp(state.ornDiamondSize, 0.05, 0.4);   // diamond half-height
@@ -3351,14 +2547,22 @@ function draw() {
     drawImageCover(state.backgroundImage);
   }
 
-  ctx.fillStyle = hexToRgba(state.bgColor, state.bgAlpha);
+  if (state.bgGradient) {
+    // A graded ground gives the metal something to sit in; on a flat fill the
+    // material has no environment to contrast against and reads as plastic.
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    grad.addColorStop(0, hexToRgba(state.bgColor, state.bgAlpha));
+    grad.addColorStop(1, hexToRgba(state.bgColor2, state.bgAlpha));
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = hexToRgba(state.bgColor, state.bgAlpha);
+  }
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGlassPolishFx();
 
-  // In text-as-stroke mode the visible frame is the clean glyph fill; the raw
-  // contour strokes are kept only as an FX mask source, so don't draw them here.
-  const textFrameMode = state.useTextSeed && state.textAsStroke && state.textSeedValue.trim();
-  if (!textFrameMode) {
+  // The metal material shades the strokes as lit 3D bodies, so the flat stroke
+  // fill underneath it would only ever show through as a hard silhouette edge.
+  if (!state.fxMetal) {
     for (const path of state.paths) {
       drawPath(path.points, path.width, state.progress, path.phase);
       for (const branch of path.branches) {
@@ -3366,7 +2570,7 @@ function draw() {
       }
     }
   }
-  drawTextFrame();
+  drawMetalFx();
   drawEdgeLightShadowFx();
   drawBubbleBlurFx();
   drawEmbossFx();
@@ -3374,7 +2578,6 @@ function draw() {
   drawCrayonPaperTexture();
   drawAudioTravellers();
 
-  drawTextReference();
   drawLogoImage();
   ctx.restore();
 }
@@ -3815,7 +3018,7 @@ function bindControls() {
   document.querySelectorAll("input[name='colorChoice']").forEach((radio) => {
     radio.addEventListener("change", () => {
       state.colorChoice = radio.value;
-      applyColorPreset(state.colorChoice);
+      syncColorInputs();
       document.getElementById("selectedColorTag").textContent = radio.value;
       document.querySelectorAll(".color-option").forEach((label) => {
         label.classList.toggle("selected", label.querySelector("input").checked);
@@ -3832,48 +3035,25 @@ function bindControls() {
     });
   });
 
-  document.getElementById("textSeedInput").addEventListener("input", (event) => {
-    state.textSeedValue = event.target.value;
-    updateTextSeedMeta(state.textSeedValue);
-  });
-  document.getElementById("textSeedInput").addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    buildPattern();
-  });
-
-  document.getElementById("subtitleInput").addEventListener("input", (event) => {
-    state.subtitleValue = event.target.value;
-  });
-  document.getElementById("subtitleInput").addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    buildPattern();
-  });
-
-  document.getElementById("textSeedToggle").addEventListener("change", (event) => {
-    state.useTextSeed = event.target.checked;
-    updateTextSeedMeta(state.textSeedValue);
-    buildPattern();
-  });
-
-  document.getElementById("textReferenceToggle").addEventListener("change", (event) => {
-    state.showTextReference = event.target.checked;
+  document.getElementById("bgGradientToggle").addEventListener("change", (event) => {
+    state.bgGradient = event.target.checked;
     draw();
   });
-
-  document.getElementById("textAsStrokeToggle").addEventListener("change", (event) => {
-    state.textAsStroke = event.target.checked;
-    buildPattern();
-  });
-
-  document.getElementById("textColorInput").addEventListener("input", (event) => {
-    state.textColor = event.target.value;
+  document.getElementById("bgColor2Input").addEventListener("input", (event) => {
+    state.bgColor2 = event.target.value;
     draw();
   });
-
-  document.getElementById("applyTextSeed").addEventListener("click", () => {
-    buildPattern();
+  document.getElementById("fxMetalToggle").addEventListener("change", (event) => {
+    state.fxMetal = event.target.checked;
+    draw();
+  });
+  document.getElementById("fxMetalPresetInput").addEventListener("change", (event) => {
+    state.fxMetalPreset = event.target.value;
+    draw();
+  });
+  document.getElementById("fxMetalTintInput").addEventListener("input", (event) => {
+    state.fxMetalTint = event.target.value;
+    draw();
   });
   document.getElementById("fxBubbleToggle").addEventListener("change", (event) => {
     state.fxBubbleBlur = event.target.checked;
@@ -3971,14 +3151,12 @@ function bindControls() {
   });
 }
 
-applyColorPreset(state.colorChoice);
 document.getElementById("startFromBottomToggle").checked = state.startFromBottom;
-document.getElementById("textSeedToggle").checked = state.useTextSeed;
-document.getElementById("textReferenceToggle").checked = state.showTextReference;
-document.getElementById("textAsStrokeToggle").checked = state.textAsStroke;
-document.getElementById("textColorInput").value = state.textColor;
-document.getElementById("textSeedInput").value = state.textSeedValue;
-document.getElementById("subtitleInput").value = state.subtitleValue;
+document.getElementById("bgGradientToggle").checked = state.bgGradient;
+document.getElementById("bgColor2Input").value = state.bgColor2;
+document.getElementById("fxMetalToggle").checked = state.fxMetal;
+document.getElementById("fxMetalPresetInput").value = state.fxMetalPreset;
+document.getElementById("fxMetalTintInput").value = state.fxMetalTint;
 document.getElementById("fxBubbleToggle").checked = state.fxBubbleBlur;
 document.getElementById("fxGlassToggle").checked = state.fxGlassPolish;
 document.getElementById("fxPatternColorInput").value = state.strokeColor;
@@ -4012,7 +3190,6 @@ document.querySelectorAll("input[name='mirrorMode']").forEach((radio) => {
   bindColor("ornBeadColorInput", "ornBeadColor");
 })();
 
-updateTextSeedMeta(state.textSeedValue);
 syncInputs();
 resizeCanvas();
 bindControls();

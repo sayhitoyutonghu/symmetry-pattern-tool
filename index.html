@@ -213,42 +213,6 @@
           </div>
         </section>
 
-        <section class="control-block">
-          <div class="control-title">
-            <p>Text Pattern</p>
-          </div>
-          <label class="switch-row style-switch-row">
-            <input id="textSeedToggle" type="checkbox" checked />
-            <span>Generate From Text</span>
-          </label>
-          <label class="switch-row style-switch-row">
-            <input id="textAsStrokeToggle" type="checkbox" checked />
-            <span>Text as Stroke (clean)</span>
-          </label>
-          <label class="switch-row style-switch-row">
-            <input id="textReferenceToggle" type="checkbox" />
-            <span>Show Text Reference</span>
-          </label>
-          <div class="field">
-            <label>Name / Text</label>
-            <input id="textSeedInput" type="text" class="text-seed-input" placeholder="Type a name..." />
-          </div>
-          <div class="field">
-            <label>Subtitle (bottom edge)</label>
-            <input id="subtitleInput" type="text" class="text-seed-input" placeholder="Bottom-edge text..." />
-          </div>
-          <div class="field">
-            <label>Text Color</label>
-            <input id="textColorInput" type="color" value="#ffffff" />
-          </div>
-          <button id="applyTextSeed" class="tiny-button">Apply Text Pattern</button>
-          <div id="textSeedMeta" class="file-meta">Text seed inactive</div>
-          <div class="field">
-            <label>Script Stroke Influence</label>
-            <input data-key="scriptStrokeInfluence" type="range" min="0" max="1" step="0.01" />
-          </div>
-        </section>
-
         <section id="motionControls" class="control-block closed">
           <div class="control-title always-visible">
             <p>Motion</p>
@@ -306,14 +270,22 @@
               <input type="radio" name="colorChoice" value="white" />
               <span class="swatch white"></span>
             </label>
-            <label class="color-option selected">
-              <input type="radio" name="colorChoice" value="white outlines" checked />
+            <label class="color-option">
+              <input type="radio" name="colorChoice" value="white outlines" />
               <span class="swatch outline-white"></span>
             </label>
           </div>
           <div class="field">
             <label>Canvas Fill Color</label>
-            <input id="bgColorInput" type="color" value="#111111" />
+            <input id="bgColorInput" type="color" value="#4a5768" />
+          </div>
+          <label class="switch-row style-switch-row">
+            <input id="bgGradientToggle" type="checkbox" checked />
+            <span>Gradient Background</span>
+          </label>
+          <div class="field">
+            <label>Gradient End Color</label>
+            <input id="bgColor2Input" type="color" value="#161b24" />
           </div>
           <div class="field">
             <label>Canvas Fill Alpha <span id="bgAlphaValue">1.00</span></label>
@@ -357,7 +329,7 @@
           </div>
           <div class="field">
             <label>Line Thickness</label>
-            <input data-key="lineThickness" type="range" min="2" max="18" step="0.1" />
+            <input data-key="lineThickness" type="range" min="2" max="90" step="0.5" />
           </div>
           <div class="field">
             <label>Width Variation</label>
@@ -374,6 +346,61 @@
           <div class="field">
             <label>Curve Smoothness</label>
             <input data-key="curveSmoothness" type="range" min="0" max="1" step="0.01" />
+          </div>
+        </section>
+
+        <section class="control-block">
+          <div class="control-title">
+            <p>Metal / 3D Material</p>
+          </div>
+          <label class="switch-row style-switch-row">
+            <input id="fxMetalToggle" type="checkbox" checked />
+            <span>Metal Material</span>
+          </label>
+          <div class="field">
+            <label>Material</label>
+            <select id="fxMetalPresetInput">
+              <option value="chrome">Chrome</option>
+              <option value="silver">Silver Filigree</option>
+              <option value="gold">Liquid Gold</option>
+              <option value="copper">Copper</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Relief Depth</label>
+            <input data-key="fxMetalRelief" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Light Angle</label>
+            <input data-key="fxMetalLightAngle" type="range" min="0" max="360" step="1" />
+          </div>
+          <div class="field">
+            <label>Specular</label>
+            <input data-key="fxMetalSpec" type="range" min="0" max="2" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Specular Sharpness</label>
+            <input data-key="fxMetalSpecSharp" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Iridescence</label>
+            <input data-key="fxMetalIridescence" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Contact Shadow</label>
+            <input data-key="fxMetalShadow" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Tint Amount</label>
+            <input data-key="fxMetalTintAmount" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Tint Color</label>
+            <input id="fxMetalTintInput" type="color" value="#ffffff" />
+          </div>
+          <div class="field">
+            <label>Render Quality</label>
+            <input data-key="fxMetalQuality" type="range" min="0.35" max="1" step="0.05" />
           </div>
         </section>
 
@@ -438,6 +465,6 @@
       <div id="logoPlaceholderMarker"></div>
     </main>
 
-    <script src="./app.js?v=neon1"></script>
+    <script src="./app.js?v=metal1"></script>
   </body>
 </html>
