@@ -18,10 +18,11 @@ const state = {
   logoH: 18,
   logoOpacity: 1,
   density: 0.24,
+  nodeDots: 0.5,
   straightLines: 0,
   flourishes: 0.55,
-  blankAreas: 0.08,
-  lineThickness: 11,
+  blankAreas: 0,
+  lineThickness: 14,
   widthVariation: 0.5,
   taperStrength: 0.85,
   sharpTips: 0.8,
@@ -30,7 +31,7 @@ const state = {
   circleGuideInfluence: 0.68,
   circleMinRadius: 2.4,
   circleMaxRadius: 9.5,
-  noOverlapGap: 20,
+  noOverlapGap: 30,
   mirrorMode: "quad",
   startFromBottom: true,
   useCircleScaffold: false,
@@ -55,7 +56,7 @@ const state = {
   fxHalftoneNoise: false,
   fxHalftoneMix: 0.38,
   // --- Metal / 3D material ---
-  fxMetal: false,
+  fxMetal: true,
   fxMetalPreset: "chrome",
   fxMetalRelief: 0.55,
   fxMetalLightAngle: 135,
@@ -65,7 +66,7 @@ const state = {
   fxMetalTint: "#ffffff",
   fxMetalTintAmount: 0,
   fxMetalShadow: 0.45,
-  fxMetalQuality: 0.5,
+  fxMetalQuality: 0.65,
   visibleTime: 1.3,
   speed: 0.012,
   colorChoice: "black",
@@ -726,8 +727,8 @@ function createCurlPath(signX, signY, options = {}) {
   // of slow sine terms plus a gentle bias — so the heading is always C1-smooth
   // and the line reads as one continuous calligraphic gesture. Per-step angle
   // noise (the old approach) can only ever produce wobble, never flow.
-  const length = minSide * rand(0.22, 0.85) * (0.7 + smoothness * 0.4);
-  const steps = Math.round(clamp(length / (minSide * 0.006), 60, 200));
+  const length = minSide * rand(0.4, 1.15) * (0.7 + smoothness * 0.4);
+  const steps = Math.round(clamp(length / (minSide * 0.006), 60, 260));
   const ds = length / steps;
 
   let heading = state.startFromBottom
@@ -798,16 +799,41 @@ function createCurlPath(signX, signY, options = {}) {
     points.push({ x, y });
   }
 
-  if (points.length < 16) return { type: "curl", points: [], width: 1, phase: 0, branches: [] };
+  // A strand that got cut down to a stub (blocked zone, margin) reads as
+  // debris, not a gesture — reject it and let the caller try another seed.
+  if (points.length < steps * 0.45) return { type: "curl", points: [], width: 1, phase: 0, branches: [] };
 
   const smoothed = smoothPolyline(points, 1, 0.5);
+  // Mix bold swashes with hairline accents, like a lettering artist's sheet.
+  const width = (chance(0.3) ? rand(0.3, 0.5) : rand(0.6, 1.3)) * state.lineThickness;
+
+  // Node beads: small bulbs sitting on the line at joints and curl tips —
+  // the connective language of the reference flourishes.
+  const dots = [];
+  const dotLevel = clamp(state.nodeDots, 0, 1);
+  if (dotLevel > 0.02) {
+    const dotCount = Math.floor(rand(0, 4.2) * dotLevel);
+    for (let d = 0; d < dotCount; d += 1) {
+      const p = smoothed[Math.floor(rand(smoothed.length * 0.08, smoothed.length * 0.92))];
+      dots.push({ x: p.x, y: p.y, r: width * rand(0.55, 1.15) });
+    }
+    if (tailCurl && chance(0.7)) {
+      const p = smoothed[smoothed.length - 1];
+      dots.push({ x: p.x, y: p.y, r: width * rand(0.7, 1.2) });
+    }
+    if (headCurl && chance(0.5)) {
+      const p = smoothed[0];
+      dots.push({ x: p.x, y: p.y, r: width * rand(0.7, 1.2) });
+    }
+  }
+
   return {
     type: "curl",
     points: simplifyBlockedSegments(smoothed),
-    // Mix bold swashes with hairline accents, like a lettering artist's sheet.
-    width: (chance(0.3) ? rand(0.22, 0.45) : rand(0.6, 1.3)) * state.lineThickness,
+    width,
     phase: rand(0, Math.PI * 2),
     branches: [],
+    dots,
   };
 }
 function smoothPolyline(points, passes = 2, pull = 0.75) {
@@ -899,6 +925,7 @@ function mirrorPath(path, mirrorX, mirrorY) {
       ...branch,
       points: branch.points.map((point) => mirrorPoint(point, mirrorX, mirrorY)),
     })),
+    dots: (path.dots || []).map((dot) => ({ ...mirrorPoint(dot, mirrorX, mirrorY), r: dot.r })),
   };
 }
 
@@ -980,7 +1007,7 @@ function buildPattern() {
   createBlankZones();
 
   createCircleGuides(runtime);
-  const count = Math.floor(10 + densityValue * 26);
+  const count = Math.floor(5 + densityValue * 15);
   const maxAttempts = count * 60;
   const collisionMap = new Map();
   const collisionCell = Math.max(10, state.lineThickness * 1.3);
@@ -1004,7 +1031,7 @@ function buildPattern() {
     if (!samples.length) continue;
     // Reference patterns interlace: some strands are allowed to cross freely,
     // the rest keep their distance so the composition doesn't clot.
-    const freeCrossing = chance(0.24);
+    const freeCrossing = chance(0.18);
     if (!freeCrossing && pathOverlaps(samples, collisionMap, collisionCell, minDistance)) continue;
     addPointsToMap(samples, collisionMap, collisionCell);
     basePaths.push(path);
@@ -1324,6 +1351,16 @@ function paintPathMask(targetCtx, widthScale = 1, expandPx = 0, alpha = 1) {
     }
     targetCtx.stroke();
   });
+  // Node beads join the same silhouette, so the metal height field swells
+  // around them and they fuse with the line like solder beads.
+  targetCtx.fillStyle = "#ffffff";
+  for (const path of state.paths) {
+    for (const dot of path.dots || []) {
+      targetCtx.beginPath();
+      targetCtx.arc(dot.x, dot.y, Math.max(0.4, dot.r * widthScale + Math.max(0, expandPx)), 0, Math.PI * 2);
+      targetCtx.fill();
+    }
+  }
   targetCtx.restore();
 }
 
@@ -2234,6 +2271,12 @@ function draw() {
       for (const branch of path.branches) {
         drawPath(branch.points, branch.width, clamp(state.progress * 1.2 - 0.15, 0, 1), path.phase + 1.7);
       }
+      ctx.fillStyle = hexToRgba(state.strokeColor, state.strokeAlpha);
+      for (const dot of path.dots || []) {
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
   drawMetalFx();
@@ -2627,6 +2670,7 @@ function bindControls() {
     "textAreaW",
     "textAreaH",
     "density",
+    "nodeDots",
     "straightLines",
     "flourishes",
     "blankAreas",
